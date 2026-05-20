@@ -7,19 +7,39 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		46F679752FBDD7CA00E06CDE /* SupbaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F679742FBDD7AF00E06CDE /* SupbaseClient.swift */; };
+		46F679722FBDD65100E06CDE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 46F6796D2FBDD65100E06CDE /* Assets.xcassets */; };
 		46F679782FBDD8B500E06CDE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 46F679772FBDD8B500E06CDE /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		46F6795F2FBC8A6700E06CDE /* nafaqati.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nafaqati.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		46F679742FBDD7AF00E06CDE /* SupbaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupbaseClient.swift; sourceTree = "<group>"; };
+		46F6796D2FBDD65100E06CDE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		46F679612FBC8A6700E06CDE /* nafaqati */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = nafaqati;
+			sourceTree = "<group>";
+		};
+		46F6797B2FBDE01000E06CDE /* packages */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = packages;
+			sourceTree = "<group>";
+		};
+		46F679812FBDE09200E06CDE /* Models */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Models;
+			sourceTree = "<group>";
+		};
+		46F679832FBDE14D00E06CDE /* ViewModel */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ViewModel;
+			sourceTree = "<group>";
+		};
+		46F679852FBDE15A00E06CDE /* View */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = View;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -41,8 +61,12 @@
 			children = (
 				46F679612FBC8A6700E06CDE /* nafaqati */,
 				46F679602FBC8A6700E06CDE /* Products */,
-				46F679742FBDD7AF00E06CDE /* SupbaseClient.swift */,
 				46F679762FBDD8B500E06CDE /* Frameworks */,
+				46F6797B2FBDE01000E06CDE /* packages */,
+				46F6796D2FBDD65100E06CDE /* Assets.xcassets */,
+				46F679812FBDE09200E06CDE /* Models */,
+				46F679832FBDE14D00E06CDE /* ViewModel */,
+				46F679852FBDE15A00E06CDE /* View */,
 			);
 			sourceTree = "<group>";
 		};
@@ -78,6 +102,10 @@
 			);
 			fileSystemSynchronizedGroups = (
 				46F679612FBC8A6700E06CDE /* nafaqati */,
+				46F6797B2FBDE01000E06CDE /* packages */,
+				46F679812FBDE09200E06CDE /* Models */,
+				46F679832FBDE14D00E06CDE /* ViewModel */,
+				46F679852FBDE15A00E06CDE /* View */,
 			);
 			name = nafaqati;
 			packageProductDependencies = (
@@ -129,6 +157,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				46F679722FBDD65100E06CDE /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -139,7 +168,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				46F679752FBDD7CA00E06CDE /* SupbaseClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
