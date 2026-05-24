@@ -11,7 +11,6 @@ struct AllSetView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Check circle
                 ZStack {
                     Circle()
                         .fill(Color.nafLightCard)
@@ -43,6 +42,7 @@ struct AllSetView: View {
                 Spacer()
 
                 Button {
+                    // Now set isLoggedIn to go to dashboard
                     authVM.isLoggedIn = true
                 } label: {
                     Text("Go to dashboard")

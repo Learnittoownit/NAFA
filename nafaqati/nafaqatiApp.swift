@@ -21,6 +21,7 @@ struct nafaqatiApp: App {
                     WelcomeView(path: $path)
                         .navigationDestination(for: OnboardingStep.self) { step in
                             switch step {
+
                             case .roleSelection:
                                 RoleSelectionView(path: $path)
 
@@ -28,16 +29,22 @@ struct nafaqatiApp: App {
                                 ParentInfoView(path: $path)
                                     .environmentObject(authVM)
 
-                            case .createPassword(let name, let email):
+                            case .createPassword(let name, let email, let numberOfChildren):
                                 CreatePasswordView(
                                     path: $path,
                                     name: name,
-                                    email: email
+                                    email: email,
+                                    numberOfChildren: numberOfChildren
                                 )
                                 .environmentObject(authVM)
 
-                            case .addChild:
-                                AddChildView(path: $path)
+                            case .addChild(let childIndex, let totalChildren):
+                                AddChildView(
+                                    path: $path,
+                                    childIndex: childIndex,
+                                    totalChildren: totalChildren
+                                )
+                                .environmentObject(authVM)
 
                             case .myChildren:
                                 MyChildrenView(path: $path)
@@ -53,12 +60,13 @@ struct nafaqatiApp: App {
                                 LoginView(path: $path)
                                     .environmentObject(authVM)
 
-                            case .forgotPassword(let email):
+                            case .forgotPassword:
                                 ForgotPasswordView(path: $path)
                                     .environmentObject(authVM)
                             }
                         }
                 }
+                .environmentObject(authVM)
                 .task {
                     await authVM.checkSession()
                 }

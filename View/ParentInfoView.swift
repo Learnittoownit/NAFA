@@ -9,12 +9,9 @@ struct ParentInfoView: View {
     @State private var numberOfChildren: Int = 1
     @State private var showChildrenPicker    = false
 
-    // ── Validation ───────────────────────
     var nameError: String? {
         if fullName.isEmpty { return nil }
-        if fullName.contains(where: { $0.isNumber }) {
-            return "Name should not contain numbers"
-        }
+        if fullName.contains(where: { $0.isNumber }) { return "Name should not contain numbers" }
         if fullName.count < 2 { return "Name is too short" }
         return nil
     }
@@ -38,29 +35,26 @@ struct ParentInfoView: View {
 
             VStack(alignment: .leading, spacing: 0) {
 
-                // ── Progress bar — sits high ───
                 OnboardingProgressBar(currentStep: 2)
                     .padding(.top, 20)
 
                 Spacer().frame(height: 28)
 
-                // ── Title ──────────────────────
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Your information")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundColor(Color.nafNavy)
                     Text("Tell us a bit about yourself")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .font(.system(size: 14, design: .rounded))
                         .foregroundColor(Color.nafTextGray)
                 }
                 .padding(.horizontal, 24)
 
                 Spacer().frame(height: 28)
 
-                // ── Form ───────────────────────
                 VStack(spacing: 18) {
 
-                    // Full name
+                    // ── Full name ──────────────────────────
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Full name")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -73,11 +67,7 @@ struct ParentInfoView: View {
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(
-                                        nameError != nil
-                                        ? Color.red.opacity(0.6)
-                                        : Color.clear,
-                                        lineWidth: 1.5)
+                                    .stroke(nameError != nil ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1.5)
                             )
                             .onChange(of: fullName) { newValue in
                                 let filtered = newValue.filter { !$0.isNumber }
@@ -86,16 +76,14 @@ struct ParentInfoView: View {
 
                         if let error = nameError {
                             HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.system(size: 12))
-                                Text(error)
-                                    .font(.system(size: 12, design: .rounded))
+                                Image(systemName: "exclamationmark.circle.fill").font(.system(size: 12))
+                                Text(error).font(.system(size: 12, design: .rounded))
                             }
                             .foregroundColor(.red)
                         }
                     }
 
-                    // Email
+                    // ── Email ──────────────────────────────
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Email")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -111,33 +99,25 @@ struct ParentInfoView: View {
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(
-                                        emailError != nil
-                                        ? Color.red.opacity(0.6)
-                                        : Color.clear,
-                                        lineWidth: 1.5)
+                                    .stroke(emailError != nil ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1.5)
                             )
 
                         if let error = emailError {
                             HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.system(size: 12))
-                                Text(error)
-                                    .font(.system(size: 12, design: .rounded))
+                                Image(systemName: "exclamationmark.circle.fill").font(.system(size: 12))
+                                Text(error).font(.system(size: 12, design: .rounded))
                             }
                             .foregroundColor(.red)
                         }
                     }
 
-                    // Number of children
+                    // ── Number of children ─────────────────
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Number of children")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .foregroundColor(Color.nafNavy)
 
-                        Button {
-                            showChildrenPicker = true
-                        } label: {
+                        Button { showChildrenPicker = true } label: {
                             HStack {
                                 Text("\(numberOfChildren) \(numberOfChildren == 1 ? "child" : "children")")
                                     .font(.system(size: 15, design: .rounded))
@@ -167,11 +147,11 @@ struct ParentInfoView: View {
 
                 Spacer()
 
-                // ── Continue button ────────────
                 Button {
                     path.append(OnboardingStep.createPassword(
                         name: fullName,
-                        email: email
+                        email: email,
+                        numberOfChildren: numberOfChildren
                     ))
                 } label: {
                     Text("Continue")
@@ -187,7 +167,6 @@ struct ParentInfoView: View {
                 .padding(.bottom, 40)
             }
         }
-        // ── Children roller sheet ──────────
         .sheet(isPresented: $showChildrenPicker) {
             VStack(spacing: 0) {
                 Capsule()
@@ -237,8 +216,7 @@ struct ParentInfoView: View {
                 Button { path.removeLast() } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                        Text("Back")
-                            .font(.system(size: 15, design: .rounded))
+                        Text("Back").font(.system(size: 15, design: .rounded))
                     }
                     .foregroundColor(Color.nafNavy)
                 }

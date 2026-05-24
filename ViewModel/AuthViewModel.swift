@@ -48,8 +48,9 @@ final class AuthViewModel: ObservableObject {
                 ))
                 .execute()
 
+            // ── Set userId but NOT isLoggedIn yet ──
+            // isLoggedIn is set in AllSetView after children are added
             currentUserId = userId
-            isLoggedIn    = true
 
         } catch {
             let message = error.localizedDescription

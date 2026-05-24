@@ -6,6 +6,7 @@ struct CreatePasswordView: View {
 
     let name: String
     let email: String
+    let numberOfChildren: Int
 
     @State private var password: String        = ""
     @State private var confirmPassword: String = ""
@@ -48,7 +49,7 @@ struct CreatePasswordView: View {
 
                     VStack(spacing: 20) {
 
-                        // ── Password field ─────────────
+                        // ── Password ───────────────────────────
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Password")
                                 .font(.system(size: 14, weight: .semibold))
@@ -60,24 +61,19 @@ struct CreatePasswordView: View {
                                 .cornerRadius(12)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(passwordTooShort
-                                            ? Color.red.opacity(0.6)
-                                            : Color.clear,
-                                                lineWidth: 1.5)
+                                        .stroke(passwordTooShort ? Color.red.opacity(0.6) : Color.clear, lineWidth: 1.5)
                                 )
 
                             if passwordTooShort {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Password must be at least 8 characters")
-                                        .font(.system(size: 12))
+                                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 12))
+                                    Text("Password must be at least 8 characters").font(.system(size: 12))
                                 }
                                 .foregroundColor(.red)
                             }
                         }
 
-                        // ── Confirm password field ─────
+                        // ── Confirm password ───────────────────
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Confirm password")
                                 .font(.system(size: 14, weight: .semibold))
@@ -91,23 +87,20 @@ struct CreatePasswordView: View {
                                     RoundedRectangle(cornerRadius: 12)
                                         .stroke(
                                             !confirmPassword.isEmpty && !passwordsMatch
-                                            ? Color.red.opacity(0.6)
-                                            : Color.clear,
+                                            ? Color.red.opacity(0.6) : Color.clear,
                                             lineWidth: 1.5)
                                 )
 
                             if !confirmPassword.isEmpty && !passwordsMatch {
                                 HStack(spacing: 4) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 12))
-                                    Text("Passwords do not match")
-                                        .font(.system(size: 12))
+                                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 12))
+                                    Text("Passwords do not match").font(.system(size: 12))
                                 }
                                 .foregroundColor(.red)
                             }
                         }
 
-                        // ── Password strength indicator ─
+                        // ── Password strength ──────────────────
                         if !password.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 Text("Password strength")
@@ -128,14 +121,12 @@ struct CreatePasswordView: View {
                             }
                         }
 
-                        // ── Error from Supabase ─────────
+                        // ── Supabase error ─────────────────────
                         if let error = authVM.errorMessage {
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.circle.fill")
-                                        .font(.system(size: 13))
-                                    Text(error)
-                                        .font(.system(size: 13))
+                                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
+                                    Text(error).font(.system(size: 13))
                                 }
                                 .foregroundColor(.red)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +150,7 @@ struct CreatePasswordView: View {
                 }
             }
 
-            // ── Continue button fixed at bottom ─
+            // ── Create account button ──────────────
             VStack {
                 Spacer()
                 Button {
@@ -169,8 +160,12 @@ struct CreatePasswordView: View {
                             email: email,
                             password: password
                         )
-                        if authVM.isLoggedIn {
-                            path.append(OnboardingStep.addChild)
+                        // Navigate only if userId was set (register succeeded)
+                        if authVM.currentUserId != nil {
+                            path.append(OnboardingStep.addChild(
+                                childIndex: 1,
+                                totalChildren: numberOfChildren
+                            ))
                         }
                     }
                 } label: {
@@ -210,13 +205,12 @@ struct CreatePasswordView: View {
         }
     }
 
-    // ── Password strength logic ──────────────
     var strengthScore: Int {
         var score = 0
         if password.count >= 8  { score += 1 }
         if password.count >= 12 { score += 1 }
-        if password.contains(where: { $0.isNumber })               { score += 1 }
-        if password.contains(where: { "!@#$%^&*".contains($0) })   { score += 1 }
+        if password.contains(where: { $0.isNumber })             { score += 1 }
+        if password.contains(where: { "!@#$%^&*".contains($0) }) { score += 1 }
         return score
     }
 
@@ -232,10 +226,10 @@ struct CreatePasswordView: View {
     func strengthColor(for index: Int) -> Color {
         let filled = index < strengthScore
         switch strengthScore {
-        case 0, 1: return filled ? .red         : Color.nafLightCard
-        case 2:    return filled ? .orange      : Color.nafLightCard
-        case 3:    return filled ? .yellow      : Color.nafLightCard
-        default:   return filled ? Color.green  : Color.nafLightCard
+        case 0, 1: return filled ? .red        : Color.nafLightCard
+        case 2:    return filled ? .orange     : Color.nafLightCard
+        case 3:    return filled ? .yellow     : Color.nafLightCard
+        default:   return filled ? Color.green : Color.nafLightCard
         }
     }
 }

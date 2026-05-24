@@ -1,17 +1,13 @@
 import Foundation
+import Combine
 import Supabase
 
+@MainActor
 final class ChildViewModel: ObservableObject {
 
-    @Published var isLoading: Bool      = false
-    @Published var errorMessage: String?
+    var isLoading: Bool      = false
+    var errorMessage: String?
 
-    // ─────────────────────────────────────────────
-    // CREATE CHILD PROFILE
-    // Inserts into child_profile table.
-    // Supabase trigger auto-creates 3 jars.
-    // ─────────────────────────────────────────────
-    @MainActor
     func createChildProfile(
         parentId: UUID,
         name: String,
@@ -23,13 +19,12 @@ final class ChildViewModel: ObservableObject {
 
         isLoading    = true
         errorMessage = nil
+        objectWillChange.send()
 
         struct ChildRow: Encodable {
             let parent_id:          String
             let name:               String
             let age:                Int
-            let gender:             String
-            let grade:              String
             let avatar_url:         String
             let pin_reset_required: Bool
         }
@@ -41,19 +36,19 @@ final class ChildViewModel: ObservableObject {
                     parent_id:          parentId.uuidString,
                     name:               name,
                     age:                age,
-                    gender:             gender,
-                    grade:              grade,
                     avatar_url:         avatarEmoji,
                     pin_reset_required: true
                 ))
                 .execute()
 
             isLoading = false
+            objectWillChange.send()
             return true
 
         } catch {
             errorMessage = error.localizedDescription
             isLoading    = false
+            objectWillChange.send()
             return false
         }
     }
