@@ -56,22 +56,6 @@ struct nafaqatiApp: App {
                             case .forgotPassword(let email):
                                 ForgotPasswordView(path: $path)
                                     .environmentObject(authVM)
-                                
-                            case .enterInviteCode:
-                                EnterInviteCodeView(path: $path)
-
-                            case .setupChildProfile(let inviteCode, let parentId):
-                                SetupChildProfileView(
-                                    inviteCode: inviteCode,
-                                    parentId: parentId,
-                                    path: $path
-                                )
-
-                            case .childWelcome(let childName):
-                                ChildWelcomeView(childName: childName, path: $path)
-
-                            case .childHome:
-                                ChildHomePlaceholderView()
                             }
                         }
                 }
