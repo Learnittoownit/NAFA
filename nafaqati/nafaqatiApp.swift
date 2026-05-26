@@ -2,7 +2,8 @@ import SwiftUI
 
 @main
 struct nafaqatiApp: App {
-    @StateObject private var authVM = AuthViewModel()
+    @StateObject private var authVM   = AuthViewModel()
+    @StateObject private var parentVM = ParentViewModel()
     @State private var showSplash = true
     @State private var path = NavigationPath()
 
@@ -10,12 +11,12 @@ struct nafaqatiApp: App {
         WindowGroup {
             if showSplash {
                 SplashView(showSplash: $showSplash)
+
             } else if authVM.isLoggedIn {
-                // TODO: replace with ParentHomeView() on Day 3
-                Text("✅ Logged in — Home coming Day 3")
-                    .onTapGesture {
-                        Task { await authVM.logout() }
-                    }
+                ParentTabView()
+                    .environmentObject(authVM)
+                    .environmentObject(parentVM)
+
             } else {
                 NavigationStack(path: $path) {
                     WelcomeView(path: $path)
@@ -48,6 +49,7 @@ struct nafaqatiApp: App {
 
                             case .myChildren:
                                 MyChildrenView(path: $path)
+                                    .environmentObject(authVM)
 
                             case .childPIN:
                                 ChildPINView(path: $path)
@@ -67,6 +69,10 @@ struct nafaqatiApp: App {
                         }
                 }
                 .environmentObject(authVM)
+                // reset path whenever we come back to onboarding
+                .onAppear {
+                    path = NavigationPath()
+                }
                 .task {
                     await authVM.checkSession()
                 }

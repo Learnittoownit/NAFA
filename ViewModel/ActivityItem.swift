@@ -29,12 +29,12 @@ final class ParentViewModel: ObservableObject {
     @Published var parentName: String = "MOM"
 
     // ── Balance ────────────────────────────
-    @Published var balance: Double = 1900
+    @Published var balance: Double = 0
 
     // ── Stats ──────────────────────────────
-    @Published var activeChildren: Int = 3
-    @Published var moneySent: Double   = 1000
-    @Published var activeGoals: Int    = 3
+    @Published var activeChildren: Int = 0
+    @Published var moneySent: Double   = 0
+    @Published var activeGoals: Int    = 0
 
     // ── Activity ───────────────────────────
     // Starts EMPTY for a brand new user.
@@ -66,7 +66,6 @@ final class ParentViewModel: ObservableObject {
     // ── Add money ──────────────────────────
     func addToBalance(_ amount: Double) {
         balance += amount
-        moneySent += amount
 
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

@@ -1,3 +1,11 @@
+//
+//  TransfersView.swift
+//  nafaqati
+//
+//  Created by lama bin slmah on 25/05/2026.
+//
+
+
 import SwiftUI
 
 struct TransfersView: View {
