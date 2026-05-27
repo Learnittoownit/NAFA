@@ -6,36 +6,36 @@ struct SettingsView: View {
     @State private var showLogoutConfirm = false
 
     var body: some View {
-        ZStack {
-            Color(hex: "E8EDF2").ignoresSafeArea()
+        ZStack(alignment: .top) {
+            // Same background pattern as Transfers and Children
+            VStack(spacing: 0) {
+                Color(hex: "2D6DAB")
+                    .frame(height: UIScreen.main.bounds.height * 0.38)
+                Color(hex: "E8EDF2")
+            }
+            .ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // ── Header ────────────────────────────
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Settings")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                    Text("Manage your preferences")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 60)
+                .padding(.bottom, 24)
 
-                // ── HEADER ────────────────────────────
-                Color(hex: "2D6DAB")
-                    .frame(height: 120)
-                    .overlay(
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Settings")
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(.white)
-                            Text("Manage your preferences")
-                                .font(.system(size: 13))
-                                .foregroundColor(.white.opacity(0.7))
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 40)
-                    )
-
-                ScrollView {
+                // ── White card body ───────────────────
+                ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 14) {
 
-                        // ── ACCOUNT SECTION ───────────────────
                         VStack(spacing: 0) {
                             SectionHeader(title: "ACCOUNT")
-
-                            // Log out
                             SettingsRow(
                                 icon: "arrow.right.square",
                                 iconColor: Color(hex: "E05555"),
@@ -47,18 +47,25 @@ struct SettingsView: View {
                         .background(Color.white)
                         .cornerRadius(16)
 
-                        // more sections coming soon
                         Text("More settings coming soon")
                             .font(.system(size: 13))
                             .foregroundColor(Color.nafTextGray)
                             .padding(.top, 8)
+
+                        Spacer()
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
-                    .padding(.bottom, 100)
+                    .padding(.bottom, 110)
+                    .frame(maxWidth: .infinity, minHeight: UIScreen.main.bounds.height)
+                    .background(
+                        Color(hex: "E8EDF2")
+                            .cornerRadius(50, corners: [.topLeft, .topRight])
+                    )
                 }
             }
         }
+        .ignoresSafeArea(edges: .top)
         .confirmationDialog("Are you sure you want to log out?", isPresented: $showLogoutConfirm, titleVisibility: .visible) {
             Button("Log out", role: .destructive) {
                 Task { await authVM.logout() }
@@ -68,9 +75,6 @@ struct SettingsView: View {
     }
 }
 
-// ─────────────────────────────────────────────
-// MARK: - Section Header
-// ─────────────────────────────────────────────
 struct SectionHeader: View {
     let title: String
     var body: some View {
@@ -85,9 +89,6 @@ struct SectionHeader: View {
     }
 }
 
-// ─────────────────────────────────────────────
-// MARK: - Settings Row
-// ─────────────────────────────────────────────
 struct SettingsRow: View {
     let icon: String
     let iconColor: Color

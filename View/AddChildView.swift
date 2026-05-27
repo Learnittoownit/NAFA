@@ -181,7 +181,7 @@ struct AddChildView: View {
                         // ── Skip → straight to All Set ──────
                         if totalChildren > 1 && !isLastChild {
                             Button {
-                                path.append(OnboardingStep.allSet)
+                                path.append(OnboardingStep.myChildren)
                             } label: {
                                 HStack(spacing: 4) {
                                     Text("Skip")
@@ -241,7 +241,7 @@ struct AddChildView: View {
     // ── After saving, always go to allSet ───
     private func navigateNext() {
         if isLastChild {
-            path.append(OnboardingStep.allSet)
+            path.append(OnboardingStep.myChildren)
         } else {
             path.append(OnboardingStep.addChild(
                 childIndex: childIndex + 1,

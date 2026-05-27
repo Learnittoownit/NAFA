@@ -57,6 +57,7 @@ struct nafaqatiApp: App {
                             case .allSet:
                                 AllSetView(path: $path)
                                     .environmentObject(authVM)
+                                    .environmentObject(parentVM)
 
                             case .login:
                                 LoginView(path: $path)
@@ -69,7 +70,6 @@ struct nafaqatiApp: App {
                         }
                 }
                 .environmentObject(authVM)
-                // reset path whenever we come back to onboarding
                 .onAppear {
                     path = NavigationPath()
                 }
