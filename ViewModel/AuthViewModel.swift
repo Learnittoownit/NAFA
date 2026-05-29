@@ -18,7 +18,6 @@ final class AuthViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Step 1: create auth account
             let response = try await supabase.auth.signUp(
                 email: email,
                 password: password
@@ -26,7 +25,6 @@ final class AuthViewModel: ObservableObject {
 
             let userId = response.user.id
 
-            // Step 2: insert into parent table
             struct ParentRow: Encodable {
                 let id: String
                 let name: String
@@ -48,8 +46,6 @@ final class AuthViewModel: ObservableObject {
                 ))
                 .execute()
 
-            // ── Set userId but NOT isLoggedIn yet ──
-            // isLoggedIn is set in AllSetView after children are added
             currentUserId = userId
 
         } catch {
@@ -114,15 +110,21 @@ final class AuthViewModel: ObservableObject {
     }
 
     // ─────────────────────────────────────
-    // CHECK SESSION — called on app launch
+    // CHECK SESSION — temporarily disabled
+    // for testing full onboarding flow.
+    // Re-enable after testing by uncommenting.
     // ─────────────────────────────────────
     func checkSession() async {
-        do {
-            let session   = try await supabase.auth.session
-            currentUserId = session.user.id
-            isLoggedIn    = true
-        } catch {
-            isLoggedIn = false
-        }
+        // ── TESTING MODE — always show onboarding ──
+        isLoggedIn = false
+
+        // ── PRODUCTION — uncomment when done testing ──
+        // do {
+        //     let session   = try await supabase.auth.session
+        //     currentUserId = session.user.id
+        //     isLoggedIn    = true
+        // } catch {
+        //     isLoggedIn = false
+        // }
     }
 }
