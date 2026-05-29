@@ -1,10 +1,8 @@
 import SwiftUI
-import Supabase
 
 struct AllSetView: View {
     @Binding var path: NavigationPath
-    @EnvironmentObject var authVM:   AuthViewModel
-    @EnvironmentObject var parentVM: ParentViewModel
+    @EnvironmentObject var authVM: AuthViewModel
 
     var body: some View {
         ZStack {
@@ -44,28 +42,8 @@ struct AllSetView: View {
                 Spacer()
 
                 Button {
-                    Task {
-                        // Fetch real child count and update parentVM before going to dashboard
-                        if let parentId = authVM.currentUserId {
-                            do {
-                                let children: [ChildProfile] = try await supabase
-                                    .from("child_profile")
-                                    .select()
-                                    .eq("parent_id", value: parentId.uuidString)
-                                    .execute()
-                                    .value
-                                await MainActor.run {
-                                    parentVM.activeChildren = children.count
-                                    authVM.isLoggedIn = true
-                                }
-                            } catch {
-                                // fallback — still go to dashboard
-                                await MainActor.run { authVM.isLoggedIn = true }
-                            }
-                        } else {
-                            authVM.isLoggedIn = true
-                        }
-                    }
+                    // Now set isLoggedIn to go to dashboard
+                    authVM.isLoggedIn = true
                 } label: {
                     Text("Go to dashboard")
                         .font(.system(size: 16, weight: .semibold))

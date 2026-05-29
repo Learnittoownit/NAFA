@@ -54,10 +54,10 @@ struct Jar: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case id
-        case childId    = "child_id"
+        case childId   = "child_id"
         case type
         case balance
-        case updatedAt  = "updated_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -76,44 +76,56 @@ enum JarType: String, Codable {
 
     var color: String {
         switch self {
-        case .saving:  return "green"
+        case .saving:   return "yellow"
         case .spending: return "red"
-        case .giving:  return "yellow"
+        case .giving:   return "green"
         }
     }
 }
 
 // ─── GOAL ─────────────────────────────────
-struct Goal: Codable, Identifiable {
-    let id: UUID
-    var childId: UUID
-    var jarId: UUID
-    var title: String
-    var targetPrice: Double
-    var savedAmount: Double
-    var deadline: Date?
-    var isAchieved: Bool
+struct Goal: Codable, Identifiable, Equatable {
+    var id:         UUID   = UUID()
+    var childId:    UUID?  = nil
+    var jarId:      UUID?  = nil
+    var isAchieved: Bool   = false
+    var deadline:   Date?  = nil
+    var createdAt:  Date?  = nil
+    var name:       String
+    var icon:       String = "🎯"
+    var target:     Double
+    var saved:      Double = 0
+    var days:       Int    = 30
 
-    // computed — never stored
-    var progressPercent: Double {
-        guard targetPrice > 0 else { return 0 }
-        return min((savedAmount / targetPrice) * 100, 100)
+    var progress: Double {
+        guard target > 0 else { return 0 }
+        return min(saved / target, 1.0)
     }
-
-    var remainingAmount: Double {
-        max(targetPrice - savedAmount, 0)
-    }
+    var percent: Int { Int(progress * 100) }
+    var remainingAmount: Double { max(target - saved, 0) }
 
     enum CodingKeys: String, CodingKey {
         case id
-        case childId      = "child_id"
-        case jarId        = "jar_id"
-        case title
-        case targetPrice  = "target_price"
-        case savedAmount  = "saved_amount"
+        case childId    = "child_id"
+        case jarId      = "jar_id"
+        case name       = "title"
+        case target     = "target_price"
+        case saved      = "saved_amount"
         case deadline
-        case isAchieved   = "is_achieved"
+        case isAchieved = "is_achieved"
+        case createdAt  = "created_at"
+        case icon
+        case days
     }
+}
+// ─── CHILD ACTIVITY ITEM ──────────────────
+struct ChildActivityItem: Identifiable, Equatable, Codable {
+    var id:        UUID   = UUID()
+    var name:      String
+    var timestamp: Date   = Date()
+    var amount:    Double
+    var jarColor:  String
+    var sfSymbol:  String
 }
 
 // ─── ALLOWANCE ────────────────────────────
