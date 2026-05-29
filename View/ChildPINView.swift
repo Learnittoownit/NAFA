@@ -22,8 +22,10 @@ struct ChildPINView: View {
                     Circle()
                         .fill(Color.nafLightCard)
                         .frame(width: 100, height: 100)
-                    Text("🦁")
-                        .font(.system(size: 50))
+                    Image("nafaqati_logo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 60, height: 60)
                 }
 
                 Spacer().frame(height: 32)

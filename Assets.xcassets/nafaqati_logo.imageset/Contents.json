@@ -1,11 +1,7 @@
 {
   "images" : [
     {
-<<<<<<<< HEAD:Assets.xcassets/full jar red.imageset/Contents.json
-      "filename" : "full jar red.png",
-========
-      "filename" : "Image.png",
->>>>>>>> 66ecba235ed39dd97fcefba91b0fa6203d37b41c:Assets.xcassets/children_tab.imageset/Contents.json
+      "filename" : "nafaqati_logo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },

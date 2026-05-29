@@ -7,8 +7,10 @@ extension Color {
     static let nafCardWhite   = Color.white
     static let nafTextGray    = Color(hex: "8A9BB0")
     static let nafLightCard   = Color(hex: "DDE3EB")
-    static let nafblue   = Color(hex: "185FA5")
-
+    static let nafBlue        = Color(hex: "185FA5")
+    static let nafblue        = Color(hex: "185FA5") // legacy alias — keep for old views
+    static let nafIconGray    = Color(hex: "5F5E5A")
+    static let nafGold        = Color(hex: "FFD580")
 }
 
 extension Color {

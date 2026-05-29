@@ -64,7 +64,6 @@ struct AddChildView: View {
 
                     Spacer().frame(height: 28)
 
-                    // ── Avatar row ─────────────────────────
                     Button { showAvatarSheet = true } label: {
                         HStack(spacing: 16) {
                             ZStack {
@@ -110,7 +109,6 @@ struct AddChildView: View {
                             text: $childName
                         )
 
-                        // ── Gender ─────────────────────────
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Gender")
                                 .font(.system(size: 14, weight: .semibold))
@@ -180,8 +178,11 @@ struct AddChildView: View {
                         }
                         .disabled(!canProceed || childVM.isLoading)
 
+                        // ── Skip → straight to All Set ──────
                         if totalChildren > 1 && !isLastChild {
-                            Button { navigateNext() } label: {
+                            Button {
+                                path.append(OnboardingStep.myChildren)
+                            } label: {
                                 HStack(spacing: 4) {
                                     Text("Skip")
                                         .font(.system(size: 15, weight: .semibold))
@@ -237,6 +238,7 @@ struct AddChildView: View {
         if success { navigateNext() }
     }
 
+    // ── After saving, always go to allSet ───
     private func navigateNext() {
         if isLastChild {
             path.append(OnboardingStep.myChildren)
@@ -303,7 +305,6 @@ struct AvatarPickerSheet: View {
                 .padding(.bottom, 16)
 
             Button {
-                // Photo library — Lama connects on Day 4
             } label: {
                 HStack(spacing: 14) {
                     ZStack {
