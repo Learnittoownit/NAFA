@@ -1,16 +1,19 @@
 import SwiftUI
+import Supabase
 
 struct ChildHomeView: View {
 
     @Binding var goals:    [Goal]
     @Binding var activity: [ChildActivityItem]
+
     let childName = UserDefaults.standard.string(
         forKey: "childName") ?? "User"
     let avatar = UserDefaults.standard.string(
         forKey: "childAvatar") ?? "🦁"
-    let savingBal   = 0.0
-    let givingBal   = 0.0
-    let spendingBal = 0.0
+
+    @State var savingBal:   Double = 0.0
+    @State var givingBal:   Double = 0.0
+    @State var spendingBal: Double = 0.0
 
     let jarWidth:  CGFloat = 100
     let jarHeight: CGFloat = 112
@@ -58,8 +61,7 @@ struct ChildHomeView: View {
     func timeAgo(_ date: Date) -> String {
         let seconds = Int(Date().timeIntervalSince(date))
         switch seconds {
-        case 0..<60:
-            return "Just now"
+        case 0..<60:    return "Just now"
         case 60..<3600:
             let mins = seconds / 60
             return "\(mins) min\(mins > 1 ? "s" : "") ago"
@@ -284,8 +286,7 @@ struct ChildHomeView: View {
                                                 weight: .bold,
                                                 design: .rounded))
                                             .foregroundColor(
-                                                Color(hex:
-                                                    "FAC775"))
+                                                Color(hex: "FAC775"))
                                             .padding(
                                                 .horizontal, 10)
                                             .padding(
@@ -352,14 +353,12 @@ struct ChildHomeView: View {
                                             .frame(
                                                 width: 64,
                                                 height: 64)
-                                        Image(systemName:
-                                            "target")
+                                        Image(systemName: "target")
                                             .font(.system(
                                                 size: 28,
                                                 weight: .medium))
                                             .foregroundColor(
-                                                Color(hex:
-                                                    "185FA5"))
+                                                Color(hex: "185FA5"))
                                     }
                                     Text("No goal yet!")
                                         .font(.system(
@@ -439,7 +438,6 @@ struct ChildHomeView: View {
                                 VStack(spacing: 0) {
                                     ForEach(activity) { item in
                                         HStack(spacing: 14) {
-
                                             ZStack {
                                                 RoundedRectangle(
                                                     cornerRadius:
@@ -461,7 +459,6 @@ struct ChildHomeView: View {
                                                             item
                                                             .jarColor))
                                             }
-
                                             VStack(
                                                 alignment:
                                                     .leading,
@@ -491,9 +488,7 @@ struct ChildHomeView: View {
                                                         Color(hex:
                                                             "8A9BB0"))
                                             }
-
                                             Spacer()
-
                                             if item.amount != 0 {
                                                 Text(item.amount
                                                      > 0
@@ -547,6 +542,88 @@ struct ChildHomeView: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .onAppear {
+            Task {
+                await fetchJarBalances()
+                await fetchRecentActivity()
+            }
+        }
+    }
+
+    // ── Fetch jar balances from Supabase ──
+    func fetchJarBalances() async {
+        guard let childIdStr = UserDefaults.standard
+            .string(forKey: "childId"),
+              let childId = UUID(uuidString: childIdStr)
+        else { return }
+
+        do {
+            let jars: [Jar] = try await supabase
+                .from("jars")
+                .select()
+                .eq("child_id", value: childId.uuidString)
+                .execute()
+                .value
+
+            await MainActor.run {
+                for jar in jars {
+                    switch jar.type {
+                    case .saving:   savingBal   = jar.balance
+                    case .spending: spendingBal = jar.balance
+                    case .giving:   givingBal   = jar.balance
+                    }
+                }
+            }
+        } catch {
+            print("❌ fetchJarBalances: \(error)")
+        }
+    }
+
+    // ── Fetch recent activity from Supabase ──
+    func fetchRecentActivity() async {
+        guard let childIdStr = UserDefaults.standard
+            .string(forKey: "childId"),
+              let childId = UUID(uuidString: childIdStr)
+        else { return }
+
+        do {
+            let transactions: [Transaction] = try await supabase
+                .from("transactions")
+                .select()
+                .eq("child_id", value: childId.uuidString)
+                .order("created_at", ascending: false)
+                .limit(10)
+                .execute()
+                .value
+
+            let items = transactions.map { t in
+                ChildActivityItem(
+                    name:      t.source == .allowance
+                               ? "Allowance received 💰"
+                               : t.source == .eidiya
+                               ? "Eidiya received 🌙"
+                               : "Money received 🎁",
+                    timestamp: t.createdAt ?? Date(),
+                    amount:    t.amount,
+                    jarColor:  t.source == .allowance
+                               ? "green"
+                               : "blue",
+                    sfSymbol:  "dollarsign.circle.fill")
+            }
+
+            await MainActor.run {
+                for item in items {
+                    if !activity.contains(where: {
+                        $0.name == item.name
+                        && $0.amount == item.amount
+                    }) {
+                        activity.insert(item, at: 0)
+                    }
+                }
+            }
+        } catch {
+            print("❌ fetchRecentActivity: \(error)")
+        }
     }
 
     func jarImage(amount: Double,
