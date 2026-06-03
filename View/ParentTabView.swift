@@ -2,7 +2,8 @@ import SwiftUI
 
 struct ParentTabView: View {
 
-    @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject var authVM:    AuthViewModel
+    // ── Single source of truth — created HERE, passed down as environmentObject
     @StateObject private var parentVM = ParentViewModel()
     @State private var selectedTab: Int = 0
 
@@ -13,12 +14,12 @@ struct ParentTabView: View {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = .white
-        appearance.stackedLayoutAppearance.normal.iconColor = inactiveColor
-        appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: inactiveColor]
-        appearance.stackedLayoutAppearance.selected.iconColor = activeColor
+        appearance.stackedLayoutAppearance.normal.iconColor    = inactiveColor
+        appearance.stackedLayoutAppearance.normal.titleTextAttributes  = [.foregroundColor: inactiveColor]
+        appearance.stackedLayoutAppearance.selected.iconColor   = activeColor
         appearance.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: activeColor]
 
-        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().standardAppearance  = appearance
         UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 
@@ -32,6 +33,7 @@ struct ParentTabView: View {
 
             TransfersView()
                 .environmentObject(parentVM)
+                .environmentObject(authVM)
                 .tabItem { Label("Transfers", systemImage: "arrow.left.arrow.right") }
                 .tag(1)
 
@@ -46,6 +48,12 @@ struct ParentTabView: View {
                 .environmentObject(authVM)
                 .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                 .tag(3)
+        }
+        // ── Load all parent data once when the tab bar appears
+        .task {
+            if let parentId = authVM.currentUserId {
+                await parentVM.loadFromSupabase(parentId: parentId)
+            }
         }
     }
 }

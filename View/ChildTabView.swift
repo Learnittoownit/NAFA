@@ -7,6 +7,9 @@ struct ChildTabView: View {
     @State private var activity:    [ChildActivityItem] = []
     @State private var showConfetti = false
 
+    // ── Store timer reference so we can cancel it
+    @State private var pollTimer: Timer? = nil
+
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
@@ -60,14 +63,20 @@ struct ChildTabView: View {
         }
         .onAppear {
             Task { await loadData() }
-            // Poll every 10 seconds to check
-            // if parent approved/rejected goals
-            Timer.scheduledTimer(
+
+            // ── Start polling — store reference so we can cancel it
+            pollTimer = Timer.scheduledTimer(
                 withTimeInterval: 10,
                 repeats: true) { _ in
                 Task { await loadData() }
             }
-        }        .onChange(of: goals) { _, _ in
+        }
+        .onDisappear {
+            // ── Cancel timer when child logs out or view disappears
+            pollTimer?.invalidate()
+            pollTimer = nil
+        }
+        .onChange(of: goals) { _, _ in
             Task { await saveGoals() }
         }
         .onChange(of: activity) { _, _ in
@@ -75,36 +84,26 @@ struct ChildTabView: View {
         }
     }
 
-    // ── Save goals to Supabase ────────────
+    // ── Save goals locally as backup ──────
     func saveGoals() async {
-        guard let childIdStr = UserDefaults.standard
-            .string(forKey: "childId"),
-              let childId = UUID(uuidString: childIdStr)
-        else { return }
-
-        // Also save locally as backup
         if let encoded = try? JSONEncoder().encode(goals) {
-            UserDefaults.standard.set(
-                encoded, forKey: "savedGoals")
+            UserDefaults.standard.set(encoded, forKey: "savedGoals")
         }
     }
 
     func saveActivityLocally() {
         if let encoded = try? JSONEncoder().encode(activity) {
-            UserDefaults.standard.set(
-                encoded, forKey: "savedChildActivity")
+            UserDefaults.standard.set(encoded, forKey: "savedChildActivity")
         }
     }
 
     // ── Load data from Supabase ───────────
     func loadData() async {
-        guard let childIdStr = UserDefaults.standard
-            .string(forKey: "childId"),
-              let childId = UUID(uuidString: childIdStr)
+        guard let childIdStr = UserDefaults.standard.string(forKey: "childId"),
+              let childId    = UUID(uuidString: childIdStr)
         else { return }
 
         do {
-            // Load goals from Supabase
             let fetchedGoals: [Goal] = try await supabase
                 .from("goals")
                 .select()
@@ -119,19 +118,15 @@ struct ChildTabView: View {
         } catch {
             print("❌ loadGoals from Supabase: \(error)")
             // Fallback to local storage
-            if let data = UserDefaults.standard.data(
-                forKey: "savedGoals"),
-               let decoded = try? JSONDecoder().decode(
-                [Goal].self, from: data) {
+            if let data    = UserDefaults.standard.data(forKey: "savedGoals"),
+               let decoded = try? JSONDecoder().decode([Goal].self, from: data) {
                 goals = decoded
             }
         }
 
         // Load activity from local storage
-        if let data = UserDefaults.standard.data(
-            forKey: "savedChildActivity"),
-           let decoded = try? JSONDecoder().decode(
-            [ChildActivityItem].self, from: data) {
+        if let data    = UserDefaults.standard.data(forKey: "savedChildActivity"),
+           let decoded = try? JSONDecoder().decode([ChildActivityItem].self, from: data) {
             activity = decoded
         }
     }

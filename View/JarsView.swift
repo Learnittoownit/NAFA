@@ -684,6 +684,7 @@ struct JarActionSheet: View {
             let meta:      String
             let sf_symbol: String
             let jar_color: String
+            let amount:    Double
         }
 
         struct ParentActivityInsert: Encodable {
@@ -739,7 +740,8 @@ struct JarActionSheet: View {
                     sf_symbol: isDeposit
                                ? "plus.circle.fill"
                                : "minus.circle.fill",
-                    jar_color: jarColorStr))
+                    jar_color: jarColorStr,
+                    amount:    isDeposit ? amt : -amt))
                 .execute()
 
             // Notify parent

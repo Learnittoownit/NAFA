@@ -600,6 +600,7 @@ struct ChildHomeView: View {
             let title:     String
             let sfSymbol:  String?
             let jarColor:  String?
+            let amount:    Double?
             let createdAt: Date?
 
             enum CodingKeys: String, CodingKey {
@@ -607,6 +608,7 @@ struct ChildHomeView: View {
                 case title
                 case sfSymbol  = "sf_symbol"
                 case jarColor  = "jar_color"
+                case amount
                 case createdAt = "created_at"
             }
         }
@@ -625,7 +627,7 @@ struct ChildHomeView: View {
                 ChildActivityItem(
                     name:      row.title,
                     timestamp: row.createdAt ?? Date(),
-                    amount:    0,
+                    amount:    row.amount    ?? 0,
                     jarColor:  row.jarColor  ?? "blue",
                     sfSymbol:  row.sfSymbol  ?? "bell.fill")
             }
@@ -697,4 +699,3 @@ struct JarCardHome: View {
         .frame(maxWidth: .infinity)
     }
 }
-

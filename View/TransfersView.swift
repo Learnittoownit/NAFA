@@ -638,9 +638,10 @@ struct SendMoneyPopup: View {
                     .execute()
                     .value
 
-                let savingAmt   = amount * 0.50
-                let spendingAmt = amount * 0.30
-                let givingAmt   = amount * 0.20
+                // ── Use per-child jar split (falls back to 50/30/20)
+                let savingAmt   = amount * c.savePercent
+                let spendingAmt = amount * c.spendPercent
+                let givingAmt   = amount * c.givePercent
 
                 for jar in jars {
                     let addAmount: Double
@@ -1222,6 +1223,7 @@ struct PendingRequestCard: View {
                                     let meta:      String
                                     let sf_symbol: String
                                     let jar_color: String
+                                    let amount:    Double
                                 }
 
                                 try? await supabase
@@ -1231,7 +1233,8 @@ struct PendingRequestCard: View {
                                         title:     "🎉 Your goal '\(goal.title)' was approved!",
                                         meta:      "Parent approved",
                                         sf_symbol: "checkmark.circle.fill",
-                                        jar_color: "green"))
+                                        jar_color: "green",
+                                        amount:    0))
                                     .execute()
                             }
                         }
@@ -1274,6 +1277,7 @@ struct PendingRequestCard: View {
                                     let meta:      String
                                     let sf_symbol: String
                                     let jar_color: String
+                                    let amount:    Double
                                 }
 
                                 try? await supabase
@@ -1283,7 +1287,8 @@ struct PendingRequestCard: View {
                                         title:     "❌ Your goal '\(goal.title)' was rejected",
                                         meta:      "Parent rejected",
                                         sf_symbol: "xmark.circle.fill",
-                                        jar_color: "red"))
+                                        jar_color: "red",
+                                        amount:    0))
                                     .execute()
                             }
                         }

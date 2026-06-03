@@ -757,6 +757,7 @@ struct GoalsView: View {
             let meta:      String
             let sf_symbol: String
             let jar_color: String
+            let amount:    Double
         }
 
         try? await supabase
@@ -766,7 +767,8 @@ struct GoalsView: View {
                 title:     title,
                 meta:      "",
                 sf_symbol: sfSymbol,
-                jar_color: jarColor))
+                jar_color: jarColor,
+                amount:    0))
             .execute()
     }
 

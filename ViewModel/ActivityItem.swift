@@ -26,25 +26,24 @@ struct AllowanceSchedule {
 @MainActor
 final class ParentViewModel: ObservableObject {
 
-    @Published var parentName: String  = ""
-    @Published var balance: Double     = 0
-    @Published var activeChildren: Int = 0
-    @Published var moneySent: Double   = 0
-    @Published var activeGoals: Int    = 0
+    @Published var parentName: String            = ""
+    @Published var parentAvatar: String          = "🧑🏽"
+    @Published var balance: Double               = 0
+    @Published var activeChildren: Int           = 0
+    @Published var moneySent: Double             = 0
+    @Published var activeGoals: Int              = 0
     @Published var activity: [ActivityItem]      = []
     @Published var allowanceSchedule: AllowanceSchedule? = nil
+    @Published var isLoading: Bool               = false
 
     var parentId: UUID? = nil
 
     var reminderText: String? {
-        guard let schedule = allowanceSchedule else {
-            return nil
-        }
+        guard let schedule = allowanceSchedule else { return nil }
         let days = Calendar.current.dateComponents(
             [.day],
             from: Calendar.current.startOfDay(for: Date()),
-            to: Calendar.current.startOfDay(
-                for: schedule.nextDueDate)
+            to:   Calendar.current.startOfDay(for: schedule.nextDueDate)
         ).day ?? 999
 
         switch days {
@@ -55,11 +54,32 @@ final class ParentViewModel: ObservableObject {
         }
     }
 
-    // ── Load all parent data from Supabase ──
+    // ─────────────────────────────────────────
+    // MARK: - Load all parent data from Supabase
+    // ─────────────────────────────────────────
     func loadFromSupabase(parentId: UUID) async {
         self.parentId = parentId
+        isLoading     = true
 
         do {
+            // 1. Fetch parent name + avatar
+            struct ParentRow: Decodable {
+                let name:      String
+                let avatarUrl: String?
+                enum CodingKeys: String, CodingKey {
+                    case name
+                    case avatarUrl = "avatar_url"
+                }
+            }
+            let parentRow: ParentRow = try await supabase
+                .from("parent")
+                .select("name, avatar_url")
+                .eq("id", value: parentId.uuidString)
+                .single()
+                .execute()
+                .value
+
+            // 2. Fetch children
             let children: [ChildProfile] = try await supabase
                 .from("child_profile")
                 .select()
@@ -67,6 +87,16 @@ final class ParentViewModel: ObservableObject {
                 .execute()
                 .value
 
+            // 3. Fetch active goals count
+            let allGoals: [Goal] = try await supabase
+                .from("goals")
+                .select()
+                .in("child_id", values: children.map { $0.id.uuidString })
+                .eq("status", value: "approved")
+                .execute()
+                .value
+
+            // 4. Fetch recent activity
             let acts: [ParentActivityRow] = try await supabase
                 .from("parent_activity")
                 .select()
@@ -80,24 +110,39 @@ final class ParentViewModel: ObservableObject {
                 ActivityItem(
                     title:   row.title,
                     meta:    row.meta ?? "",
-                    isToday: Calendar.current
-                        .isDateInToday(
-                            row.createdAt ?? Date()))
+                    isToday: Calendar.current.isDateInToday(row.createdAt ?? Date()))
             }
 
-            await MainActor.run {
-                self.activeChildren = children.count
-                self.activity       = activityItems
+            // 5. Calculate total money sent (sum of all jar balances across all children)
+            var totalSent: Double = 0
+            if !children.isEmpty {
+                let allJars: [Jar] = try await supabase
+                    .from("jars")
+                    .select()
+                    .in("child_id", values: children.map { $0.id.uuidString })
+                    .execute()
+                    .value
+                totalSent = allJars.reduce(0) { $0 + $1.balance }
             }
+
+            parentName      = parentRow.name
+            parentAvatar    = parentRow.avatarUrl ?? "🧑🏽"
+            activeChildren  = children.count
+            activeGoals     = allGoals.count
+            moneySent       = totalSent
+            activity        = activityItems
 
         } catch {
             print("❌ loadFromSupabase: \(error)")
         }
+
+        isLoading = false
     }
 
-    // ── Log activity to Supabase ───────────
-    func logActivity(title: String,
-                     meta: String) async {
+    // ─────────────────────────────────────────
+    // MARK: - Log activity to Supabase
+    // ─────────────────────────────────────────
+    func logActivity(title: String, meta: String) async {
         guard let parentId = parentId else { return }
 
         struct ActivityInsert: Encodable {
@@ -115,14 +160,9 @@ final class ParentViewModel: ObservableObject {
                     meta:      meta))
                 .execute()
 
-            await MainActor.run {
-                self.activity.insert(
-                    ActivityItem(
-                        title:   title,
-                        meta:    meta,
-                        isToday: true),
-                    at: 0)
-            }
+            activity.insert(
+                ActivityItem(title: title, meta: meta, isToday: true),
+                at: 0)
         } catch {
             print("❌ logActivity: \(error)")
         }
@@ -137,9 +177,7 @@ final class ParentViewModel: ObservableObject {
         }
     }
 
-    func sendMoney(to childName: String,
-                   amount: Double,
-                   type: String) {
+    func sendMoney(to childName: String, amount: Double, type: String) {
         balance   -= amount
         moneySent += amount
         Task {
@@ -149,8 +187,7 @@ final class ParentViewModel: ObservableObject {
         }
     }
 
-    func setReminder(childName: String,
-                     nextDueDate: Date) {
+    func setReminder(childName: String, nextDueDate: Date) {
         allowanceSchedule = AllowanceSchedule(
             childName:   childName,
             nextDueDate: nextDueDate)
@@ -162,7 +199,9 @@ final class ParentViewModel: ObservableObject {
     }
 }
 
-// ── Supabase row model ────────────────────
+// ─────────────────────────────────────────────
+// MARK: - Supabase row model
+// ─────────────────────────────────────────────
 struct ParentActivityRow: Codable, Identifiable {
     let id:        UUID
     let parentId:  UUID

@@ -41,14 +41,13 @@ struct ParentHomeView: View {
                             ZStack {
                                 Circle()
                                     .fill(Color.white.opacity(0.2))
-                                    .frame(width: 46, height: 46)
-                                Image(systemName: "person.fill")
-                                    .font(.system(size: 22))
-                                    .foregroundColor(.white)
+                                    .frame(width: 52, height: 52)
+                                Text(parentVM.parentAvatar.isEmpty ? "🧑🏽" : parentVM.parentAvatar)
+                                    .font(.system(size: 30))
                             }
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Hi, \(parentVM.parentName)")
-                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Hi, \(parentVM.parentName.isEmpty ? "there" : parentVM.parentName)")
+                                    .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.white)
                                 Text(greeting)
                                     .font(.system(size: 13))

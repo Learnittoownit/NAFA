@@ -33,6 +33,14 @@ struct ChildProfile: Codable, Identifiable {
     var pin: String?
     var pinResetRequired: Bool
     var inviteCode: String?
+    var jarSavePercent:  Int?
+    var jarSpendPercent: Int?
+    var jarGivePercent:  Int?
+
+    // ── Resolved split — falls back to 50/30/20 if not set
+    var savePercent:  Double { Double(jarSavePercent  ?? 50) / 100.0 }
+    var spendPercent: Double { Double(jarSpendPercent ?? 30) / 100.0 }
+    var givePercent:  Double { Double(jarGivePercent  ?? 20) / 100.0 }
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -43,6 +51,9 @@ struct ChildProfile: Codable, Identifiable {
         case pin
         case pinResetRequired = "pin_reset_required"
         case inviteCode       = "invite_code"
+        case jarSavePercent   = "jar_save_percent"
+        case jarSpendPercent  = "jar_spend_percent"
+        case jarGivePercent   = "jar_give_percent"
     }
 }
 // ─── JAR ──────────────────────────────────
