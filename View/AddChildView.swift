@@ -1,8 +1,4 @@
-// AddChildView.swift
-// Nafaqati
-
 import SwiftUI
-import PhotosUI
 
 struct AddChildView: View {
     @Binding var path: NavigationPath
@@ -12,13 +8,12 @@ struct AddChildView: View {
     let childIndex: Int
     let totalChildren: Int
 
-    @State private var childName:       String    = ""
-    @State private var age:             String    = ""
-    @State private var grade:           String    = ""
-    @State private var selectedGender:  String    = ""
-    @State private var selectedAvatar:  String    = ""
-    @State private var selectedImage:   UIImage?  = nil   // real photo if taken
-    @State private var showAvatarSheet: Bool      = false
+    @State private var childName:       String = ""
+    @State private var age:             String = ""
+    @State private var grade:           String = ""
+    @State private var selectedGender:  String = ""
+    @State private var selectedAvatar:  String = ""
+    @State private var showAvatarSheet: Bool   = false
 
     var canProceed: Bool {
         !childName.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -26,12 +21,18 @@ struct AddChildView: View {
         !selectedGender.isEmpty
     }
 
-    var isLastChild: Bool { childIndex == totalChildren }
+    var isLastChild: Bool {
+        childIndex == totalChildren
+    }
 
     var nextButtonLabel: String {
-        if totalChildren == 1  { return "Next" }
-        else if isLastChild    { return "Done" }
-        else                   { return "Next child" }
+        if totalChildren == 1 {
+            return "Next"
+        } else if isLastChild {
+            return "Done"
+        } else {
+            return "Next child"
+        }
     }
 
     var body: some View {
@@ -71,15 +72,10 @@ struct AddChildView: View {
                                     .fill(Color.nafLightCard)
                                     .frame(width: 72, height: 72)
                                     .overlay(
-                                        Circle().stroke(Color.nafNavy.opacity(0.15), lineWidth: 2)
+                                        Circle()
+                                            .stroke(Color.nafNavy.opacity(0.15), lineWidth: 2)
                                     )
-                                if let img = selectedImage {
-                                    Image(uiImage: img)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 72, height: 72)
-                                        .clipShape(Circle())
-                                } else if selectedAvatar.isEmpty {
+                                if selectedAvatar.isEmpty {
                                     Image(systemName: "person.fill")
                                         .font(.system(size: 28))
                                         .foregroundColor(Color.nafTextGray)
@@ -121,23 +117,34 @@ struct AddChildView: View {
                                 .foregroundColor(Color.nafNavy)
 
                             HStack(spacing: 10) {
-                                GenderButton(emoji: "👦", label: "Boy",
-                                             isSelected: selectedGender == "Boy")
-                                { selectedGender = "Boy" }
+                                GenderButton(
+                                    emoji: "👦",
+                                    label: "Boy",
+                                    isSelected: selectedGender == "Boy"
+                                ) { selectedGender = "Boy" }
 
-                                GenderButton(emoji: "👧", label: "Girl",
-                                             isSelected: selectedGender == "Girl")
-                                { selectedGender = "Girl" }
+                                GenderButton(
+                                    emoji: "👧",
+                                    label: "Girl",
+                                    isSelected: selectedGender == "Girl"
+                                ) { selectedGender = "Girl" }
 
                                 Spacer()
                             }
                         }
 
                         HStack(spacing: 12) {
-                            NafField(label: "Age", placeholder: "7 – 12",
-                                     text: $age, keyboardType: .numberPad)
-                            NafField(label: "School Grade", placeholder: "Grade 3",
-                                     text: $grade)
+                            NafField(
+                                label: "Age",
+                                placeholder: "7 – 12",
+                                text: $age,
+                                keyboardType: .numberPad
+                            )
+                            NafField(
+                                label: "School Grade",
+                                placeholder: "Grade 3",
+                                text: $grade
+                            )
                         }
 
                         if let error = childVM.errorMessage {
@@ -192,11 +199,7 @@ struct AddChildView: View {
             }
         }
         .sheet(isPresented: $showAvatarSheet) {
-            AvatarPickerSheet(
-                selectedAvatar: $selectedAvatar,
-                selectedImage:  $selectedImage,
-                showSheet:      $showAvatarSheet
-            )
+            AvatarPickerSheet(selectedAvatar: $selectedAvatar, showSheet: $showAvatarSheet)
         }
         .navigationBarBackButtonHidden(true)
         .toolbar {
@@ -213,7 +216,13 @@ struct AddChildView: View {
     }
 
     private func saveAndContinue() async {
-        guard let parentId = authVM.currentUserId else { return }
+        guard let parentId = authVM.currentUserId else {
+            print("❌ No parentId found")
+            return
+        }
+
+        print("🔄 Attempting insert for child: \(childName)")
+
         let success = await childVM.createChildProfile(
             parentId:    parentId,
             name:        childName.trimmingCharacters(in: .whitespaces),
@@ -222,6 +231,9 @@ struct AddChildView: View {
             grade:       grade,
             avatarEmoji: selectedAvatar
         )
+
+        print(success ? "✅ Insert succeeded" : "❌ Insert failed: \(childVM.errorMessage ?? "unknown")")
+
         if success { navigateNext() }
     }
 
@@ -240,7 +252,6 @@ struct AddChildView: View {
 // ─────────────────────────────────────────────
 // MARK: - Gender Button
 // ─────────────────────────────────────────────
-
 struct GenderButton: View {
     let emoji: String
     let label: String
@@ -268,59 +279,18 @@ struct GenderButton: View {
 }
 
 // ─────────────────────────────────────────────
-// MARK: - Camera Picker (UIImagePickerController)
-// ─────────────────────────────────────────────
-
-struct CameraPicker: UIViewControllerRepresentable {
-    @Binding var selectedImage: UIImage?
-    @Binding var isPresented: Bool
-
-    func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: CameraPicker
-        init(_ parent: CameraPicker) { self.parent = parent }
-
-        func imagePickerController(_ picker: UIImagePickerController,
-                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                parent.selectedImage = image
-            }
-            parent.isPresented = false
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.isPresented = false
-        }
-    }
-}
-
-// ─────────────────────────────────────────────
 // MARK: - Avatar Picker Sheet
 // ─────────────────────────────────────────────
-
 struct AvatarPickerSheet: View {
     @Binding var selectedAvatar: String
-    @Binding var selectedImage:  UIImage?
     @Binding var showSheet: Bool
-
-    @State private var showCamera:   Bool = false
-    @State private var photosItem:   PhotosPickerItem? = nil
 
     let avatars = [
         "🦁", "🐨", "🦊", "🦋", "🐬",
         "🐼", "🦄", "🐯", "🦅", "🐸",
         "🦔", "🐙", "👦", "👧"
     ]
+
     let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
 
     var body: some View {
@@ -332,8 +302,9 @@ struct AvatarPickerSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 16)
 
-            // ── Option 1: Camera ──────────────────────
-            Button { showCamera = true } label: {
+            Button {
+                // Photo library — Lama connects on Day 4
+            } label: {
                 HStack(spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 11)
@@ -347,35 +318,7 @@ struct AvatarPickerSheet: View {
                         Text("Take a photo")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(Color.nafNavy)
-                        Text("Open camera")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.nafTextGray)
-                    }
-                    Spacer()
-                }
-                .padding(14)
-                .background(Color.nafLightCard)
-                .cornerRadius(14)
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 10)
-
-            // ── Option 2: Photo Library ───────────────
-            PhotosPicker(selection: $photosItem, matching: .images) {
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 11)
-                            .fill(Color(hex: "4CAF82"))
-                            .frame(width: 42, height: 42)
-                        Image(systemName: "photo.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.white)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Upload from library")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color.nafNavy)
-                        Text("Choose from your photos")
+                        Text("Camera or upload from library")
                             .font(.system(size: 12))
                             .foregroundColor(Color.nafTextGray)
                     }
@@ -387,18 +330,7 @@ struct AvatarPickerSheet: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 16)
-            .onChange(of: photosItem) { newItem in
-                Task {
-                    if let data = try? await newItem?.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        selectedImage  = image
-                        selectedAvatar = ""   // clear emoji if photo chosen
-                        showSheet = false
-                    }
-                }
-            }
 
-            // ── Divider ───────────────────────────────
             HStack {
                 Rectangle().fill(Color.nafLightCard).frame(height: 1)
                 Text("or pick a character")
@@ -411,12 +343,10 @@ struct AvatarPickerSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
 
-            // ── Emoji grid ────────────────────────────
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(avatars, id: \.self) { avatar in
                     Button {
                         selectedAvatar = avatar
-                        selectedImage  = nil   // clear photo if emoji chosen
                     } label: {
                         Text(avatar)
                             .font(.system(size: 26))
@@ -440,8 +370,9 @@ struct AvatarPickerSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
 
-            // ── Confirm button ────────────────────────
-            Button { showSheet = false } label: {
+            Button {
+                showSheet = false
+            } label: {
                 Text("Confirm")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
@@ -454,33 +385,7 @@ struct AvatarPickerSheet: View {
             .padding(.bottom, 36)
         }
         .background(Color.white)
-        .presentationDetents([.height(480)])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraPicker(selectedImage: $selectedImage, isPresented: $showCamera)
-                .ignoresSafeArea()
-                .onDisappear {
-                    if selectedImage != nil {
-                        selectedAvatar = ""   // clear emoji if photo taken
-                        showSheet = false
-                    }
-                }
-        }
     }
 }
-
-// ─────────────────────────────────────────────
-// MARK: - Preview
-// ─────────────────────────────────────────────
-
-#Preview {
-    NavigationStack {
-        AddChildView(
-            path: .constant(NavigationPath()),
-            childIndex: 1,
-            totalChildren: 1
-        )
-        .environmentObject(AuthViewModel())
-    }
-}
-
