@@ -117,6 +117,8 @@ struct ChildHomeView: View {
                                     .cornerRadius(10)
                             }
                             Spacer()
+                            // ── Sign out button ──
+                            SignOutButton()
                         }
                         .padding(.horizontal, 24)
 
@@ -697,5 +699,45 @@ struct JarCardHome: View {
                 .padding(.bottom, 6)
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// ═══════════════════════════════════════════════
+// MARK: - Sign Out Button (child-friendly)
+// ═══════════════════════════════════════════════
+
+struct SignOutButton: View {
+    @AppStorage("isChildLoggedIn") var isChildLoggedIn = false
+    @State private var showConfirm = false
+
+    var body: some View {
+        Button { showConfirm = true } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.15))
+                    .frame(width: 38, height: 38)
+                Image(systemName: "door.left.hand.open")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.white)
+            }
+        }
+        .confirmationDialog(
+            "Leave Nafaqati? 👋",
+            isPresented: $showConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Yes, sign out", role: .destructive) {
+                UserDefaults.standard.removeObject(forKey: "childId")
+                UserDefaults.standard.removeObject(forKey: "parentId")
+                UserDefaults.standard.removeObject(forKey: "childName")
+                UserDefaults.standard.removeObject(forKey: "childAvatar")
+                UserDefaults.standard.removeObject(forKey: "savedGoals")
+                UserDefaults.standard.removeObject(forKey: "savedChildActivity")
+                isChildLoggedIn = false
+            }
+            Button("Stay", role: .cancel) {}
+        } message: {
+            Text("You can always come back with your code 🔑")
+        }
     }
 }

@@ -235,9 +235,11 @@ struct ParentHomeView: View {
         .sheet(isPresented: $showAddMoneySheet) {
             AddMoneySheet(amount: $addMoneyAmount) {
                 if let amt = Double(addMoneyAmount), amt > 0 {
-                    parentVM.addToBalance(amt)
-                    addMoneyAmount = ""
-                    showAddMoneySheet = false
+                    Task {
+                        await parentVM.addToBalance(amt)
+                        addMoneyAmount    = ""
+                        showAddMoneySheet = false
+                    }
                 }
             }
             .presentationDetents([.height(280)])

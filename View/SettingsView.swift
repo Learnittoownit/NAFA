@@ -317,10 +317,19 @@ struct ParentProfileEditSheet: View {
     @ObservedObject var authVM:   AuthViewModel
     @Environment(\.dismiss) var dismiss
 
-    @State private var nameText      = ""
-    @State private var selectedEmoji = ""
-    @State private var isSaving      = false
-    @State private var nameError     = ""
+    @State private var nameText        = ""
+    @State private var selectedEmoji   = ""
+    @State private var isSaving        = false
+    @State private var nameError       = ""
+    @State private var email           = ""
+
+    // Change password states
+    @State private var showChangePassword = false
+    @State private var newPassword        = ""
+    @State private var confirmPassword    = ""
+    @State private var isChangingPassword = false
+    @State private var passwordError      = ""
+    @State private var passwordSuccess    = false
 
     let parentEmojis: [String] = [
         "👩🏻","👩🏼","👩🏽","👩🏾","👩🏿",
@@ -346,12 +355,15 @@ struct ParentProfileEditSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
+
+                    // Avatar
                     ZStack {
                         Circle().fill(Color(hex: "DDE8F4")).frame(width: 90, height: 90)
                         Text(selectedEmoji.isEmpty ? "🧑🏽" : selectedEmoji).font(.system(size: 52))
                     }
                     .padding(.top, 24).padding(.bottom, 20)
 
+                    // Emoji grid
                     VStack(alignment: .leading, spacing: 10) {
                         Text("CHOOSE YOUR LOOK")
                             .font(.system(size: 11, weight: .bold)).tracking(1)
@@ -373,6 +385,7 @@ struct ParentProfileEditSheet: View {
                         .padding(.horizontal, 24)
                     }
 
+                    // Name field
                     VStack(alignment: .leading, spacing: 8) {
                         Text("NAME")
                             .font(.system(size: 11, weight: .bold)).tracking(1)
@@ -390,7 +403,134 @@ struct ParentProfileEditSheet: View {
                             }.foregroundColor(Color(hex: "E05555"))
                         }
                     }
+                    .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 20)
+
+                    Divider().padding(.horizontal, 24)
+
+                    // Email (read only)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("EMAIL")
+                            .font(.system(size: 11, weight: .bold)).tracking(1)
+                            .foregroundColor(Color.nafTextGray)
+                        HStack {
+                            Text(email.isEmpty ? "Loading…" : email)
+                                .font(.system(size: 15))
+                                .foregroundColor(Color(hex: "1B3A6B"))
+                            Spacer()
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color.nafTextGray)
+                        }
+                        .padding(14)
+                        .background(Color(hex: "F0F2F5"))
+                        .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.nafLightCard, lineWidth: 1))
+
+                        Text("Email cannot be changed")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color.nafTextGray)
+                    }
                     .padding(.horizontal, 24).padding(.top, 20).padding(.bottom, 8)
+
+                    // Change Password toggle
+                    Button {
+                        withAnimation { showChangePassword.toggle() }
+                        passwordError   = ""
+                        passwordSuccess = false
+                        newPassword     = ""
+                        confirmPassword = ""
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "key.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(hex: "2D6DAB"))
+                            Text("Change password")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(Color(hex: "2D6DAB"))
+                            Spacer()
+                            Image(systemName: showChangePassword ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.nafTextGray)
+                        }
+                        .padding(14)
+                        .background(Color(hex: "EBF4FF"))
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal, 24).padding(.top, 12)
+
+                    if showChangePassword {
+                        VStack(alignment: .leading, spacing: 12) {
+
+                            // New password
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("NEW PASSWORD")
+                                    .font(.system(size: 11, weight: .bold)).tracking(1)
+                                    .foregroundColor(Color.nafTextGray)
+                                SecureField("At least 6 characters", text: $newPassword)
+                                    .font(.system(size: 15)).foregroundColor(Color(hex: "1B3A6B"))
+                                    .padding(14).background(Color(hex: "F5F7FA")).cornerRadius(12)
+                                    .overlay(RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.nafLightCard, lineWidth: 1))
+                                    .onChange(of: newPassword) { _, _ in passwordError = "" }
+                            }
+
+                            // Confirm password
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("CONFIRM PASSWORD")
+                                    .font(.system(size: 11, weight: .bold)).tracking(1)
+                                    .foregroundColor(Color.nafTextGray)
+                                SecureField("Repeat new password", text: $confirmPassword)
+                                    .font(.system(size: 15)).foregroundColor(Color(hex: "1B3A6B"))
+                                    .padding(14).background(Color(hex: "F5F7FA")).cornerRadius(12)
+                                    .overlay(RoundedRectangle(cornerRadius: 12)
+                                        .stroke(
+                                            !confirmPassword.isEmpty && confirmPassword != newPassword
+                                            ? Color(hex: "E05555") : Color.nafLightCard,
+                                            lineWidth: 1))
+                                    .onChange(of: confirmPassword) { _, _ in passwordError = "" }
+                            }
+
+                            // Error / success
+                            if !passwordError.isEmpty {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 12))
+                                    Text(passwordError).font(.system(size: 12))
+                                }.foregroundColor(Color(hex: "E05555"))
+                            }
+                            if passwordSuccess {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill").font(.system(size: 12))
+                                    Text("Password changed successfully").font(.system(size: 12))
+                                }.foregroundColor(Color(hex: "2E7D32"))
+                            }
+
+                            // Update password button
+                            Button {
+                                Task { await changePassword() }
+                            } label: {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(newPassword.count >= 6 && newPassword == confirmPassword
+                                              ? Color(hex: "1B3A6B") : Color.nafTextGray)
+                                        .frame(height: 46)
+                                    if isChangingPassword {
+                                        ProgressView().tint(.white)
+                                    } else {
+                                        Text("Update password")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                            }
+                            .disabled(newPassword.count < 6 || newPassword != confirmPassword || isChangingPassword)
+                        }
+                        .padding(.horizontal, 24)
+                        .padding(.top, 12)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    Spacer().frame(height: 24)
                 }
             }
 
@@ -401,7 +541,8 @@ struct ParentProfileEditSheet: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 27)
-                        .fill(nameText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.nafTextGray : Color(hex: "1B3A6B"))
+                        .fill(nameText.trimmingCharacters(in: .whitespaces).isEmpty
+                              ? Color.nafTextGray : Color(hex: "1B3A6B"))
                         .frame(height: 54)
                     if isSaving { ProgressView().tint(.white) }
                     else { Text("Save changes").font(.system(size: 16, weight: .semibold)).foregroundColor(.white) }
@@ -411,7 +552,20 @@ struct ParentProfileEditSheet: View {
             .padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 36)
         }
         .background(Color.white)
-        .onAppear { nameText = parentVM.parentName; selectedEmoji = parentVM.parentAvatar }
+        .onAppear {
+            nameText      = parentVM.parentName
+            selectedEmoji = parentVM.parentAvatar
+            Task { await fetchEmail() }
+        }
+    }
+
+    private func fetchEmail() async {
+        do {
+            let session = try await supabase.auth.session
+            await MainActor.run { email = session.user.email ?? "" }
+        } catch {
+            print("❌ fetchEmail: \(error)")
+        }
     }
 
     private func validateName() -> Bool {
@@ -433,9 +587,38 @@ struct ParentProfileEditSheet: View {
             try await supabase.from("parent")
                 .update(ParentProfileUpdate(name: trimmed, avatar_url: selectedEmoji))
                 .eq("id", value: parentId.uuidString).execute()
-            await MainActor.run { parentVM.parentName = trimmed; parentVM.parentAvatar = selectedEmoji; dismiss() }
+            await MainActor.run {
+                parentVM.parentName   = trimmed
+                parentVM.parentAvatar = selectedEmoji
+                dismiss()
+            }
         } catch { print("❌ saveProfile: \(error)") }
         isSaving = false
+    }
+
+    private func changePassword() async {
+        guard newPassword == confirmPassword else {
+            passwordError = "Passwords don't match"; return
+        }
+        guard newPassword.count >= 6 else {
+            passwordError = "Password must be at least 6 characters"; return
+        }
+        isChangingPassword = true
+        passwordError      = ""
+        passwordSuccess    = false
+        do {
+            try await supabase.auth.update(user: UserAttributes(password: newPassword))
+            await MainActor.run {
+                passwordSuccess = true
+                newPassword     = ""
+                confirmPassword = ""
+                withAnimation { showChangePassword = false }
+            }
+        } catch {
+            await MainActor.run { passwordError = "Failed to change password. Try again." }
+            print("❌ changePassword: \(error)")
+        }
+        isChangingPassword = false
     }
 }
 
@@ -591,11 +774,7 @@ struct ChildProfileEditSheet: View {
             givePercent    = child.jarGivePercent  ?? 20
         }
         .sheet(isPresented: $showAvatarPicker) {
-            AvatarPickerSheet(
-                selectedAvatar: $selectedAvatar,
-                selectedImage:  $selectedImage,
-                showSheet:      $showAvatarPicker
-            )
+            AvatarPickerSheet(selectedAvatar: $selectedAvatar, selectedImage: $selectedImage, showSheet: $showAvatarPicker)
         }
         .confirmationDialog("Remove \(nameText)?", isPresented: $showRemoveConfirm, titleVisibility: .visible) {
             Button("Remove child", role: .destructive) { Task { await removeChild() } }
@@ -968,7 +1147,6 @@ struct AddChildFromSettingsView: View {
 
     @State private var childName       = ""
     @State private var age             = ""
-    @State private var selectedGender  = ""
     @State private var selectedAvatar  = ""
     @State private var selectedImage:  UIImage? = nil
     @State private var showAvatarSheet = false
@@ -976,7 +1154,7 @@ struct AddChildFromSettingsView: View {
     @State private var saveError       = ""
 
     var canSave: Bool {
-        !childName.trimmingCharacters(in: .whitespaces).isEmpty && !age.isEmpty && !selectedGender.isEmpty
+        !childName.trimmingCharacters(in: .whitespaces).isEmpty && !age.isEmpty
     }
 
     var body: some View {
@@ -991,19 +1169,15 @@ struct AddChildFromSettingsView: View {
                                 ZStack {
                                     Circle().fill(Color.nafLightCard).frame(width: 72, height: 72)
                                         .overlay(Circle().stroke(Color.nafNavy.opacity(0.15), lineWidth: 2))
-                                    if let img = selectedImage {
-                                        Image(uiImage: img)
-                                            .resizable().scaledToFill()
-                                            .frame(width: 72, height: 72).clipShape(Circle())
-                                    } else if selectedAvatar.isEmpty {
+                                    if selectedAvatar.isEmpty {
                                         Image(systemName: "person.fill").font(.system(size: 28)).foregroundColor(Color.nafTextGray)
                                     } else {
                                         Text(selectedAvatar).font(.system(size: 36))
                                     }
                                 }
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("Child's photo").font(.system(size: 15, weight: .semibold)).foregroundColor(Color.nafNavy)
-                                    Text("Tap to take a photo or pick a character").font(.system(size: 13)).foregroundColor(Color.nafTextGray)
+                                    Text("Child's character").font(.system(size: 15, weight: .semibold)).foregroundColor(Color.nafNavy)
+                                    Text("Tap to pick a character or photo").font(.system(size: 13)).foregroundColor(Color.nafTextGray)
                                 }
                                 Spacer()
                             }
@@ -1015,16 +1189,7 @@ struct AddChildFromSettingsView: View {
 
                         VStack(spacing: 18) {
                             NafField(label: "Child's name", placeholder: "e.g. Shahad", text: $childName)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Gender").font(.system(size: 14, weight: .semibold)).foregroundColor(Color.nafNavy)
-                                HStack(spacing: 10) {
-                                    GenderButton(emoji: "👦", label: "Boy",  isSelected: selectedGender == "Boy")  { selectedGender = "Boy" }
-                                    GenderButton(emoji: "👧", label: "Girl", isSelected: selectedGender == "Girl") { selectedGender = "Girl" }
-                                    Spacer()
-                                }
-                            }
                             NafField(label: "Age", placeholder: "7 – 12", text: $age, keyboardType: .numberPad)
-
                             if !saveError.isEmpty {
                                 HStack(spacing: 6) {
                                     Image(systemName: "exclamationmark.circle.fill").font(.system(size: 13))
@@ -1056,11 +1221,7 @@ struct AddChildFromSettingsView: View {
                 }
             }
             .sheet(isPresented: $showAvatarSheet) {
-                AvatarPickerSheet(
-                    selectedAvatar: $selectedAvatar,
-                    selectedImage:  $selectedImage,
-                    showSheet:      $showAvatarSheet
-                )
+                AvatarPickerSheet(selectedAvatar: $selectedAvatar, selectedImage: $selectedImage, showSheet: $showAvatarSheet)
             }
         }
     }
@@ -1111,4 +1272,3 @@ struct SettingsRow: View {
         }
     }
 }
-

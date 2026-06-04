@@ -45,7 +45,6 @@ final class ParentViewModel: ObservableObject {
             from: Calendar.current.startOfDay(for: Date()),
             to:   Calendar.current.startOfDay(for: schedule.nextDueDate)
         ).day ?? 999
-
         switch days {
         case 0:  return "\(schedule.childName)'s allowance is due today!"
         case 1:  return "\(schedule.childName)'s allowance is due tomorrow"
@@ -62,18 +61,20 @@ final class ParentViewModel: ObservableObject {
         isLoading     = true
 
         do {
-            // 1. Fetch parent name + avatar
+            // 1. Fetch parent name, avatar, balance
             struct ParentRow: Decodable {
                 let name:      String
                 let avatarUrl: String?
+                let balance:   Double?
                 enum CodingKeys: String, CodingKey {
                     case name
                     case avatarUrl = "avatar_url"
+                    case balance
                 }
             }
             let parentRow: ParentRow = try await supabase
                 .from("parent")
-                .select("name, avatar_url")
+                .select("name, avatar_url, balance")
                 .eq("id", value: parentId.uuidString)
                 .single()
                 .execute()
@@ -88,13 +89,17 @@ final class ParentViewModel: ObservableObject {
                 .value
 
             // 3. Fetch active goals count
-            let allGoals: [Goal] = try await supabase
-                .from("goals")
-                .select()
-                .in("child_id", values: children.map { $0.id.uuidString })
-                .eq("status", value: "approved")
-                .execute()
-                .value
+            var goalsCount = 0
+            if !children.isEmpty {
+                let allGoals: [Goal] = try await supabase
+                    .from("goals")
+                    .select()
+                    .in("child_id", values: children.map { $0.id.uuidString })
+                    .eq("status", value: "approved")
+                    .execute()
+                    .value
+                goalsCount = allGoals.count
+            }
 
             // 4. Fetch recent activity
             let acts: [ParentActivityRow] = try await supabase
@@ -102,7 +107,7 @@ final class ParentViewModel: ObservableObject {
                 .select()
                 .eq("parent_id", value: parentId.uuidString)
                 .order("created_at", ascending: false)
-                .limit(20)
+                .limit(50)
                 .execute()
                 .value
 
@@ -113,7 +118,7 @@ final class ParentViewModel: ObservableObject {
                     isToday: Calendar.current.isDateInToday(row.createdAt ?? Date()))
             }
 
-            // 5. Calculate total money sent (sum of all jar balances across all children)
+            // 5. Money sent = sum of all children's jar balances
             var totalSent: Double = 0
             if !children.isEmpty {
                 let allJars: [Jar] = try await supabase
@@ -125,12 +130,13 @@ final class ParentViewModel: ObservableObject {
                 totalSent = allJars.reduce(0) { $0 + $1.balance }
             }
 
-            parentName      = parentRow.name
-            parentAvatar    = parentRow.avatarUrl ?? "🧑🏽"
-            activeChildren  = children.count
-            activeGoals     = allGoals.count
-            moneySent       = totalSent
-            activity        = activityItems
+            parentName     = parentRow.name
+            parentAvatar   = parentRow.avatarUrl ?? "🧑🏽"
+            balance        = parentRow.balance ?? 0
+            activeChildren = children.count
+            activeGoals    = goalsCount
+            moneySent      = totalSent
+            activity       = activityItems
 
         } catch {
             print("❌ loadFromSupabase: \(error)")
@@ -140,17 +146,60 @@ final class ParentViewModel: ObservableObject {
     }
 
     // ─────────────────────────────────────────
+    // MARK: - Add to balance (persisted)
+    // ─────────────────────────────────────────
+    func addToBalance(_ amount: Double) async {
+        guard let parentId = parentId else { return }
+        let newBalance = balance + amount
+        do {
+            try await supabase
+                .from("parent")
+                .update(["balance": newBalance])
+                .eq("id", value: parentId.uuidString)
+                .execute()
+            balance = newBalance
+            await logActivity(
+                title: "You added \(Int(amount)) SAR to balance",
+                meta:  "Today · Just now")
+        } catch {
+            print("❌ addToBalance: \(error)")
+        }
+    }
+
+    // ─────────────────────────────────────────
+    // MARK: - Send money (persisted, no negatives)
+    // ─────────────────────────────────────────
+    func sendMoney(to childName: String, amount: Double, type: String) async {
+        guard let parentId = parentId else { return }
+        // Safety: never go below 0
+        let deduct     = min(amount, balance)
+        let newBalance = max(0, balance - deduct)
+        do {
+            try await supabase
+                .from("parent")
+                .update(["balance": newBalance])
+                .eq("id", value: parentId.uuidString)
+                .execute()
+            balance    = newBalance
+            moneySent += deduct
+            await logActivity(
+                title: "You transferred \(Int(deduct)) SAR to \(childName)",
+                meta:  "Today · \(type)")
+        } catch {
+            print("❌ sendMoney: \(error)")
+        }
+    }
+
+    // ─────────────────────────────────────────
     // MARK: - Log activity to Supabase
     // ─────────────────────────────────────────
     func logActivity(title: String, meta: String) async {
         guard let parentId = parentId else { return }
-
         struct ActivityInsert: Encodable {
             let parent_id: String
             let title:     String
             let meta:      String
         }
-
         do {
             try await supabase
                 .from("parent_activity")
@@ -159,7 +208,6 @@ final class ParentViewModel: ObservableObject {
                     title:     title,
                     meta:      meta))
                 .execute()
-
             activity.insert(
                 ActivityItem(title: title, meta: meta, isToday: true),
                 at: 0)
@@ -168,29 +216,8 @@ final class ParentViewModel: ObservableObject {
         }
     }
 
-    func addToBalance(_ amount: Double) {
-        balance += amount
-        Task {
-            await logActivity(
-                title: "You added \(Int(amount)) SAR to balance",
-                meta:  "Today · Just now")
-        }
-    }
-
-    func sendMoney(to childName: String, amount: Double, type: String) {
-        balance   -= amount
-        moneySent += amount
-        Task {
-            await logActivity(
-                title: "You transferred \(Int(amount)) SAR to \(childName)",
-                meta:  "Today · \(type)")
-        }
-    }
-
     func setReminder(childName: String, nextDueDate: Date) {
-        allowanceSchedule = AllowanceSchedule(
-            childName:   childName,
-            nextDueDate: nextDueDate)
+        allowanceSchedule = AllowanceSchedule(childName: childName, nextDueDate: nextDueDate)
         Task {
             await logActivity(
                 title: "You set up a reminder",

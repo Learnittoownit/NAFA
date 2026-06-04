@@ -157,9 +157,10 @@ struct GoalsView: View {
                                 sfSymbol: "target",
                                 jarColor: "blue")
 
+                            let cn1 = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
                             await notifyParent(
-                                title: "Your child set a new goal: \(newGoal.name)",
-                                meta:  "Goal · \(Int(newGoal.target)) SAR")
+                                title: "🎯 \(cn1) set a new goal: \(newGoal.name)",
+                                meta:  "New goal · Target: \(Int(newGoal.target)) SAR · \(newGoal.days) days")
 
                         } catch {
                             print("❌ save goal: \(error)")
@@ -205,9 +206,10 @@ struct GoalsView: View {
                                     sfSymbol: "pencil",
                                     jarColor: "purple")
 
+                                let cn2 = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
                                 await notifyParent(
-                                    title: "Your child edited a goal: \(editedGoal.name)",
-                                    meta:  "Goal edited")
+                                    title: "✏️ \(cn2) edited goal: \(editedGoal.name)",
+                                    meta:  "Target: \(Int(editedGoal.target)) SAR · \(editedGoal.days) days")
                             }
 
                             let item = ChildActivityItem(
@@ -574,9 +576,10 @@ struct GoalsView: View {
                                 sfSymbol: "trash",
                                 jarColor: "red")
 
+                            let cn3 = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
                             await notifyParent(
-                                title: "Your child deleted a goal: \(goal.name)",
-                                meta:  "Goal deleted")
+                                title: "🗑️ \(cn3) deleted goal: \(goal.name)",
+                                meta:  "Goal deleted · Target was \(Int(goal.target)) SAR")
                         }
 
                         if let i = goals.firstIndex(
@@ -676,9 +679,10 @@ struct GoalsView: View {
                                     sfSymbol: "arrow.clockwise",
                                     jarColor: "blue")
 
+                                let cn4 = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
                                 await notifyParent(
-                                    title: "Your child re-requested a goal: \(goal.name)",
-                                    meta:  "Goal · \(Int(goal.target)) SAR")
+                                    title: "🔄 \(cn4) re-requested goal: \(goal.name)",
+                                    meta:  "Goal · Target: \(Int(goal.target)) SAR")
 
                                 if let i = goals.firstIndex(
                                     where: {

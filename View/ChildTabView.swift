@@ -6,19 +6,15 @@ struct ChildTabView: View {
     @State private var goals:       [Goal]              = []
     @State private var activity:    [ChildActivityItem] = []
     @State private var showConfetti = false
-
-    // ── Store timer reference so we can cancel it
-    @State private var pollTimer: Timer? = nil
+    @State private var pollTimer:   Timer?              = nil
 
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
-                ChildHomeView(
-                    goals:    $goals,
-                    activity: $activity)
+
+                ChildHomeView(goals: $goals, activity: $activity)
                     .tabItem {
-                        Image(systemName: selectedTab == 0
-                              ? "house.fill" : "house")
+                        Image(systemName: selectedTab == 0 ? "house.fill" : "house")
                         Text("Home")
                     }
                     .tag(0)
@@ -35,8 +31,7 @@ struct ChildTabView: View {
                     activity: $activity,
                     onGoalAdded: {
                         withAnimation { showConfetti = true }
-                        DispatchQueue.main.asyncAfter(
-                            deadline: .now() + 3) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                             withAnimation { showConfetti = false }
                         }
                     })
@@ -45,13 +40,6 @@ struct ChildTabView: View {
                         Text("Goals")
                     }
                     .tag(2)
-
-                ChildSettingsView()
-                    .tabItem {
-                        Image(systemName: "gearshape")
-                        Text("Settings")
-                    }
-                    .tag(3)
             }
             .tint(Color(hex: "1B3A6B"))
 
@@ -63,28 +51,18 @@ struct ChildTabView: View {
         }
         .onAppear {
             Task { await loadData() }
-
-            // ── Start polling — store reference so we can cancel it
-            pollTimer = Timer.scheduledTimer(
-                withTimeInterval: 10,
-                repeats: true) { _ in
+            pollTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { _ in
                 Task { await loadData() }
             }
         }
         .onDisappear {
-            // ── Cancel timer when child logs out or view disappears
             pollTimer?.invalidate()
             pollTimer = nil
         }
-        .onChange(of: goals) { _, _ in
-            Task { await saveGoals() }
-        }
-        .onChange(of: activity) { _, _ in
-            saveActivityLocally()
-        }
+        .onChange(of: goals)    { _, _ in Task { await saveGoals() } }
+        .onChange(of: activity) { _, _ in saveActivityLocally() }
     }
 
-    // ── Save goals locally as backup ──────
     func saveGoals() async {
         if let encoded = try? JSONEncoder().encode(goals) {
             UserDefaults.standard.set(encoded, forKey: "savedGoals")
@@ -97,7 +75,6 @@ struct ChildTabView: View {
         }
     }
 
-    // ── Load data from Supabase ───────────
     func loadData() async {
         guard let childIdStr = UserDefaults.standard.string(forKey: "childId"),
               let childId    = UUID(uuidString: childIdStr)
@@ -105,26 +82,17 @@ struct ChildTabView: View {
 
         do {
             let fetchedGoals: [Goal] = try await supabase
-                .from("goals")
-                .select()
+                .from("goals").select()
                 .eq("child_id", value: childId.uuidString)
-                .execute()
-                .value
-
-            await MainActor.run {
-                goals = fetchedGoals
-            }
-
+                .execute().value
+            await MainActor.run { goals = fetchedGoals }
         } catch {
-            print("❌ loadGoals from Supabase: \(error)")
-            // Fallback to local storage
             if let data    = UserDefaults.standard.data(forKey: "savedGoals"),
                let decoded = try? JSONDecoder().decode([Goal].self, from: data) {
                 goals = decoded
             }
         }
 
-        // Load activity from local storage
         if let data    = UserDefaults.standard.data(forKey: "savedChildActivity"),
            let decoded = try? JSONDecoder().decode([ChildActivityItem].self, from: data) {
             activity = decoded

@@ -62,18 +62,8 @@ struct ChildrenView: View {
                                 ChildCard(
                                     child: child,
                                     jars: jarsByChild[child.id] ?? [],
-                                    sentBalance: parentVM.activity
-                                        .filter { $0.title.contains("to \(child.name)") }
-                                        .compactMap { item -> Double? in
-                                            let parts = item.title.components(separatedBy: " ")
-                                            if let idx = parts.firstIndex(of: "transferred"),
-                                               idx + 1 < parts.count,
-                                               let amt = Double(parts[idx + 1]) {
-                                                return amt
-                                            }
-                                            return nil
-                                        }
-                                        .reduce(0, +),
+                                    sentBalance: (jarsByChild[child.id] ?? [])
+                                        .reduce(0) { $0 + $1.balance },
                                     isExpanded: expandedChildId == child.id,
                                     onToggle: {
                                         withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
@@ -469,18 +459,45 @@ struct RecentActivitySheet: View {
 
     func fetchActivity() async {
         do {
-            let all: [ParentActivityRow] = try await supabase
-                .from("parent_activity")
+            // ── Fetch from child_activity using child_id (not name!)
+            struct ChildActivityRow: Codable, Identifiable {
+                let id:        UUID
+                let title:     String
+                let meta:      String?
+                let sfSymbol:  String?
+                let jarColor:  String?
+                let amount:    Double?
+                let createdAt: Date?
+                enum CodingKeys: String, CodingKey {
+                    case id; case title; case meta
+                    case sfSymbol  = "sf_symbol"
+                    case jarColor  = "jar_color"
+                    case amount
+                    case createdAt = "created_at"
+                }
+            }
+
+            let rows: [ChildActivityRow] = try await supabase
+                .from("child_activity")
                 .select()
-                .ilike("title",
-                       pattern: "%\(child.name)%")
+                .eq("child_id", value: child.id.uuidString)
                 .order("created_at", ascending: false)
-                .limit(20)
+                .limit(30)
                 .execute()
                 .value
 
+            // Convert to ParentActivityRow shape for display
+            let mapped = rows.map { row in
+                ParentActivityRow(
+                    id:        row.id,
+                    parentId:  child.parentId,
+                    title:     row.title,
+                    meta:      row.meta,
+                    createdAt: row.createdAt)
+            }
+
             await MainActor.run {
-                activities = all
+                activities = mapped
                 isLoading  = false
             }
         } catch {
@@ -519,3 +536,4 @@ struct RecentActivitySheet: View {
         }
     }
 }
+

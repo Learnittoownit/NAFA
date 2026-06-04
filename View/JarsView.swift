@@ -481,6 +481,8 @@ struct JarActionSheet: View {
     @State private var amount           = ""
     @State private var selectedCategory = "Food"
     @State private var isLoading        = false
+    @State private var requestSent      = false
+    @State private var insufficientFunds = false
     @Environment(\.dismiss) var dismiss
 
     let categories: [(String, String)] = [
@@ -489,6 +491,18 @@ struct JarActionSheet: View {
         ("🎮", "Fun"),
         ("🛍️", "Other"),
     ]
+
+    // All jars require parent approval for adding money
+    var isDepositRequest: Bool { true }
+
+    // Spending jar shows "spend" language, others show "add"
+    var buttonLabel: String {
+        jarType == .spending ? "Send spend request 📨" : "Send request to parent 📨"
+    }
+
+    var actionVerb: String {
+        jarType == .spending ? "spend" : "add"
+    }
 
     var body: some View {
         ZStack {
@@ -508,266 +522,280 @@ struct JarActionSheet: View {
                         .scaledToFit()
                         .frame(width: 90, height: 100)
 
-                    VStack(alignment: .leading,
-                           spacing: 14) {
+                    VStack(alignment: .leading, spacing: 14) {
                         Text(title)
-                            .font(.system(
-                                size: 22,
-                                weight: .bold,
-                                design: .rounded))
-                            .foregroundColor(
-                                Color(hex: "1B3A6B"))
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(hex: "1B3A6B"))
 
+                        // ── Deposit request banner (all jars)
+                        HStack(spacing: 8) {
+                            Image(systemName: "bell.badge.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(Color(hex: "2D6DAB"))
+                            Text("Your parent will approve this")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(hex: "2D6DAB"))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color(hex: "EBF4FF"))
+                        .cornerRadius(10)
+
+                        // ── Spending categories (only for spending jar)
                         if jarType == .spending {
                             HStack(spacing: 12) {
-                                ForEach(categories,
-                                        id: \.1) { cat in
-                                    Button {
-                                        selectedCategory =
-                                            cat.1
-                                    } label: {
+                                ForEach(categories, id: \.1) { cat in
+                                    Button { selectedCategory = cat.1 } label: {
                                         VStack(spacing: 4) {
                                             ZStack {
                                                 Circle()
-                                                    .fill(
-                                                        selectedCategory
-                                                        == cat.1
-                                                        ? color
-                                                        : Color.white)
-                                                    .frame(
-                                                        width: 44,
-                                                        height: 44)
-                                                    .shadow(
-                                                        color: Color
-                                                            .black
-                                                            .opacity(
-                                                                0.06),
-                                                        radius: 4,
-                                                        x: 0, y: 2)
-                                                Text(cat.0)
-                                                    .font(.system(
-                                                        size: 20))
+                                                    .fill(selectedCategory == cat.1 ? color : Color.white)
+                                                    .frame(width: 44, height: 44)
+                                                    .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+                                                Text(cat.0).font(.system(size: 20))
                                             }
                                             Text(cat.1)
-                                                .font(.system(
-                                                    size: 10,
-                                                    design:
-                                                        .rounded))
-                                                .foregroundColor(
-                                                    selectedCategory
-                                                    == cat.1
-                                                    ? color
-                                                    : Color(hex:
-                                                        "8A9BB0"))
+                                                .font(.system(size: 10, design: .rounded))
+                                                .foregroundColor(selectedCategory == cat.1 ? color : Color(hex: "8A9BB0"))
                                         }
                                     }
                                 }
                             }
                         }
 
-                        VStack(alignment: .leading,
-                               spacing: 6) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("Amount (SAR)")
-                                .font(.system(
-                                    size: 13,
-                                    weight: .semibold,
-                                    design: .rounded))
-                                .foregroundColor(
-                                    Color(hex: "8A9BB0"))
-
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(hex: "8A9BB0"))
                             HStack {
                                 TextField("0", text: $amount)
                                     .keyboardType(.decimalPad)
-                                    .font(.system(
-                                        size: 36,
-                                        weight: .bold,
-                                        design: .rounded))
+                                    .font(.system(size: 36, weight: .bold, design: .rounded))
                                     .foregroundColor(.black)
                                     .tint(color)
                                 Spacer()
                                 Text("SAR")
-                                    .font(.system(
-                                        size: 18,
-                                        weight: .semibold,
-                                        design: .rounded))
-                                    .foregroundColor(
-                                        Color(hex: "8A9BB0"))
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    .foregroundColor(Color(hex: "8A9BB0"))
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 14)
-                            .background(Color.white)
-                            .cornerRadius(14)
+                            .padding(.horizontal, 16).padding(.vertical, 14)
+                            .background(Color.white).cornerRadius(14)
                         }
                     }
                 }
                 .padding(.horizontal, 20)
 
+                // ── Insufficient funds error (spending jar)
+                if insufficientFunds {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 14))
+                        Text("Not enough money in your jar!")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                    }
+                    .foregroundColor(Color(hex: "E05555"))
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                    .transition(.opacity)
+                }
+
+                // ── Success state after request sent
+                if requestSent {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color(hex: "4CAF50"))
+                        Text("Request sent! 🎉")
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(hex: "1B3A6B"))
+                        Text("Wait for your parent to approve it")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundColor(Color(hex: "8A9BB0"))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                    .transition(.opacity.combined(with: .scale))
+                }
+
                 Spacer().frame(height: 28)
 
                 Button {
-                    Task { await saveToJar() }
+                    Task {
+                        if isDepositRequest {
+                            await sendDepositRequest()
+                        } else {
+                            await saveToJar()
+                        }
+                    }
                 } label: {
                     ZStack {
                         RoundedRectangle(cornerRadius: 28)
-                            .fill(
-                                amount.isEmpty
-                                ? color.opacity(0.4)
-                                : color)
+                            .fill(amount.isEmpty ? color.opacity(0.4) : color)
                             .frame(height: 56)
                         if isLoading {
                             ProgressView().tint(.white)
                         } else {
-                            Text(jarType == .spending
-                                 ? "Save purchase"
-                                 : "Save to jar")
-                                .font(.system(
-                                    size: 17,
-                                    weight: .semibold,
-                                    design: .rounded))
+                            Text(buttonLabel)
+                                .font(.system(size: 17, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                         }
                     }
                 }
-                .disabled(amount.isEmpty || isLoading)
+                .disabled(amount.isEmpty || isLoading || requestSent)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
             }
         }
     }
 
-    // ── Save to Supabase ──────────────────
+    // ── Send deposit REQUEST to parent (no jar balance change yet) ──
+    func sendDepositRequest() async {
+        guard let amt = Double(amount), amt > 0,
+              let childIdStr  = UserDefaults.standard.string(forKey: "childId"),
+              let parentIdStr = UserDefaults.standard.string(forKey: "parentId"),
+              let parentId    = UUID(uuidString: parentIdStr)
+        else { return }
+
+        isLoading = true
+
+        let childName = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
+        let jarName: String
+        let jarColorStr: String
+        switch jarType {
+        case .saving:   jarName = "Saving";   jarColorStr = "yellow"
+        case .giving:   jarName = "Giving";   jarColorStr = "green"
+        case .spending: jarName = "Spending"; jarColorStr = "red"
+        }
+
+        struct ParentActivityInsert: Encodable {
+            let parent_id: String; let title: String; let meta: String
+        }
+        struct ChildActivityInsert: Encodable {
+            let child_id: String; let title: String; let meta: String
+            let sf_symbol: String; let jar_color: String; let amount: Double
+        }
+
+        do {
+            // ── Notify parent in their activity feed
+            try await supabase
+                .from("parent_activity")
+                .insert(ParentActivityInsert(
+                    parent_id: parentId.uuidString,
+                    title:     jarType == .spending
+                               ? "💸 \(childName) wants to spend \(Int(amt)) SAR from \(jarName) jar"
+                               : "💰 \(childName) requested to add \(Int(amt)) SAR to \(jarName) jar",
+                    meta:      jarType == .spending
+                               ? "Deposit request · -\(Int(amt)) SAR · \(jarName) · \(childIdStr)"
+                               : "Deposit request · \(Int(amt)) SAR · \(jarName) · \(childIdStr)"))
+                .execute()
+
+            // ── Log to child activity
+            try? await supabase
+                .from("child_activity")
+                .insert(ChildActivityInsert(
+                    child_id:  childIdStr,
+                    title:     jarType == .spending
+                               ? "Requested to spend \(Int(amt)) SAR from \(jarName) jar"
+                               : "Requested \(Int(amt)) SAR for \(jarName) jar",
+                    meta:      "Waiting for parent approval",
+                    sf_symbol: "bell.badge.fill",
+                    jar_color: jarColorStr,
+                    amount:    0))
+                .execute()
+
+            await MainActor.run {
+                isLoading = false
+                withAnimation { requestSent = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    dismiss()
+                }
+            }
+        } catch {
+            print("❌ sendDepositRequest: \(error)")
+            await MainActor.run { isLoading = false }
+        }
+    }
+
+    // ── Direct withdrawal (spending jar only) ──
     func saveToJar() async {
         guard let jarId = jarId,
               let amt = Double(amount),
               amt > 0,
-              let childIdStr = UserDefaults.standard
-                .string(forKey: "childId"),
+              let childIdStr = UserDefaults.standard.string(forKey: "childId"),
               let childId = UUID(uuidString: childIdStr)
-        else {
-            print("❌ saveToJar: missing data")
-            return
-        }
+        else { return }
 
         isLoading = true
-        let isDeposit   = jarType != .spending
-        let finalAmount = isDeposit ? amt : -amt
-
-        let jarName: String
-        switch jarType {
-        case .saving:   jarName = "saving jar"
-        case .spending: jarName = "spending jar"
-        case .giving:   jarName = "giving jar"
-        }
-
-        let jarColorStr: String
-        switch jarType {
-        case .saving:   jarColorStr = "yellow"
-        case .giving:   jarColorStr = "green"
-        case .spending: jarColorStr = "red"
-        }
-
-        let childName = UserDefaults.standard
-            .string(forKey: "childName") ?? "Your child"
+        let finalAmount = -amt  // spending = always withdrawal
 
         struct JarTransactionInsert: Encodable {
-            let child_id: String
-            let jar_id:   String
-            let type:     String
-            let amount:   Double
-            let source:   String
-            let note:     String
+            let child_id: String; let jar_id: String
+            let type: String; let amount: Double
+            let source: String; let note: String
         }
-
         struct ChildActivityInsert: Encodable {
-            let child_id:  String
-            let title:     String
-            let meta:      String
-            let sf_symbol: String
-            let jar_color: String
-            let amount:    Double
+            let child_id: String; let title: String; let meta: String
+            let sf_symbol: String; let jar_color: String; let amount: Double
+        }
+        struct ParentActivityInsert: Encodable {
+            let parent_id: String; let title: String; let meta: String
         }
 
-        struct ParentActivityInsert: Encodable {
-            let parent_id: String
-            let title:     String
-            let meta:      String
-        }
+        let childName = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
 
         do {
-            // Get current balance
             let jars: [Jar] = try await supabase
-                .from("jars")
-                .select()
-                .eq("id", value: jarId.uuidString)
-                .execute()
-                .value
+                .from("jars").select().eq("id", value: jarId.uuidString).execute().value
 
             if let jar = jars.first {
-                let newBalance = jar.balance + finalAmount
+                // ── Check child has enough balance
+                guard jar.balance >= amt else {
+                    await MainActor.run {
+                        isLoading = false
+                        withAnimation { insufficientFunds = true }
+                    }
+                    return
+                }
+                let newBalance = jar.balance - amt
                 try await supabase
                     .from("jars")
                     .update(["balance": newBalance])
-                    .eq("id", value: jarId.uuidString)
-                    .execute()
+                    .eq("id", value: jarId.uuidString).execute()
             }
 
-            // Log transaction
-            try await supabase
-                .from("transactions")
+            try await supabase.from("transactions")
                 .insert(JarTransactionInsert(
-                    child_id: childId.uuidString,
-                    jar_id:   jarId.uuidString,
-                    type:     isDeposit
-                              ? "deposit" : "withdrawal",
-                    amount:   amt,
-                    source:   "manual",
-                    note:     jarType == .spending
-                              ? selectedCategory
-                              : "Manual deposit"))
+                    child_id: childId.uuidString, jar_id: jarId.uuidString,
+                    type: "withdrawal", amount: amt,
+                    source: "manual", note: selectedCategory))
                 .execute()
 
-            // Log child activity
-            try? await supabase
-                .from("child_activity")
+            try? await supabase.from("child_activity")
                 .insert(ChildActivityInsert(
                     child_id:  childId.uuidString,
-                    title:     isDeposit
-                               ? "Added \(Int(amt)) SAR to \(jarName)"
-                               : "Spent \(Int(amt)) SAR from \(jarName)",
-                    meta:      jarType == .spending
-                               ? selectedCategory
-                               : "Manual",
-                    sf_symbol: isDeposit
-                               ? "plus.circle.fill"
-                               : "minus.circle.fill",
-                    jar_color: jarColorStr,
-                    amount:    isDeposit ? amt : -amt))
+                    title:     "Spent \(Int(amt)) SAR from spending jar",
+                    meta:      selectedCategory,
+                    sf_symbol: "minus.circle.fill",
+                    jar_color: "red",
+                    amount:    -amt))
                 .execute()
 
-            // Notify parent
-            if let parentIdStr = UserDefaults.standard
-                .string(forKey: "parentId"),
-               let parentId = UUID(
-                uuidString: parentIdStr) {
-                try? await supabase
-                    .from("parent_activity")
+            // Notify parent about spending
+            if let parentIdStr = UserDefaults.standard.string(forKey: "parentId"),
+               let parentId = UUID(uuidString: parentIdStr) {
+                try? await supabase.from("parent_activity")
                     .insert(ParentActivityInsert(
                         parent_id: parentId.uuidString,
-                        title:     isDeposit
-                                   ? "\(childName) added \(Int(amt)) SAR to \(jarName)"
-                                   : "\(childName) spent \(Int(amt)) SAR from \(jarName)",
-                        meta:      jarType == .spending
-                                   ? selectedCategory
-                                   : "Manual"))
+                        title:     "\(childName) spent \(Int(amt)) SAR on \(selectedCategory)",
+                        meta:      "Spending · \(selectedCategory)"))
                     .execute()
             }
 
             await MainActor.run {
                 isLoading = false
-                onSaved(amt, isDeposit)
+                onSaved(amt, false)
                 dismiss()
             }
-
         } catch {
             print("❌ saveToJar error: \(error)")
             await MainActor.run { isLoading = false }

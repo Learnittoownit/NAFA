@@ -15,8 +15,9 @@ struct PendingRequest: Identifiable {
     let description: String
     let isPositive: Bool
     var isApproved: Bool? = nil
-    var goalId: UUID? = nil
-
+    var goalId:     UUID? = nil
+    var activityId: UUID? = nil  // for jar deposit requests
+    var childId:    UUID? = nil  // direct child ID — no name lookup needed
 }
 
 struct TransferRecord: Identifiable {
@@ -173,6 +174,7 @@ struct TransfersView: View {
         .task {
             await fetchChildren()
             await fetchPendingGoals()
+            await fetchTransferHistory()
         }        .overlay {
             if showSendMoney {
                 ZStack {
@@ -210,12 +212,9 @@ struct TransfersView: View {
     }
     
     private func fetchPendingGoals() async {
-        guard let parentId = authVM.currentUserId else {
-            return
-        }
+        guard let parentId = authVM.currentUserId else { return }
 
         do {
-            // Get all children for this parent
             let children: [ChildProfile] = try await supabase
                 .from("child_profile")
                 .select()
@@ -225,6 +224,7 @@ struct TransfersView: View {
 
             var requests: [PendingRequest] = []
 
+            // ── 1. Goal requests (status = pending)
             for child in children {
                 let pendingGoals: [Goal] = try await supabase
                     .from("goals")
@@ -237,8 +237,7 @@ struct TransfersView: View {
                 for goal in pendingGoals {
                     requests.append(PendingRequest(
                         childName:    child.name,
-                        childInitial: String(
-                            child.name.prefix(1)),
+                        childInitial: String(child.name.prefix(1)),
                         action:       "wants to set a goal",
                         time:         "Just now",
                         amount:       goal.target,
@@ -248,13 +247,143 @@ struct TransfersView: View {
                 }
             }
 
-            await MainActor.run {
-                pendingRequests = requests
+            // ── 2. Jar deposit requests from parent_activity
+            let jarActs: [ParentActivityRow] = try await supabase
+                .from("parent_activity")
+                .select()
+                .eq("parent_id", value: parentId.uuidString)
+                .ilike("meta", pattern: "%Deposit request%")
+                .order("created_at", ascending: false)
+                .limit(50)
+                .execute()
+                .value
+
+            for act in jarActs {
+                let title = act.title
+                let meta  = act.meta ?? ""
+                let parts = title.components(separatedBy: " ")
+                if let sarIdx = parts.firstIndex(of: "SAR"),
+                   sarIdx >= 2,
+                   let amt = Double(parts[sarIdx - 1]) {
+
+                    let childName = parts.count > 1 ? parts[1] : "Child"
+                    let jarName: String
+                    if title.contains("Saving")       { jarName = "Saving" }
+                    else if title.contains("Giving")  { jarName = "Giving" }
+                    else                              { jarName = "Spending" }
+
+                    // Extract child_id from meta "Deposit request · X SAR · Jar · childId"
+                    let metaParts = meta.components(separatedBy: " · ")
+                    let childId = metaParts.last.flatMap { UUID(uuidString: $0) }
+
+                    let isSpend = title.contains("spend") || title.contains("Spending")
+                    requests.append(PendingRequest(
+                        childName:    childName,
+                        childInitial: String(childName.prefix(1)),
+                        action:       isSpend ? "wants to spend money" : "requested to add money",
+                        time:         "Just now",
+                        amount:       amt,
+                        description:  "\(jarName) jar · \(isSpend ? "-" : "+")\(Int(amt)) SAR",
+                        isPositive:   !isSpend,
+                        goalId:       nil,
+                        activityId:   act.id,
+                        childId:      childId))
+                }
             }
+
+            await MainActor.run { pendingRequests = requests }
 
         } catch {
             print("❌ fetchPendingGoals: \(error)")
         }
+    }
+
+    private func fetchTransferHistory() async {
+        guard let parentId = authVM.currentUserId else { return }
+        do {
+            let acts: [ParentActivityRow] = try await supabase
+                .from("parent_activity")
+                .select()
+                .eq("parent_id", value: parentId.uuidString)
+                .ilike("title", pattern: "%transferred%")
+                .order("created_at", ascending: false)
+                .limit(100)
+                .execute()
+                .value
+
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            let records = acts.compactMap { row -> TransferRecord? in
+                let parts = row.title.components(separatedBy: " ")
+                guard parts.count >= 6, let amt = Double(parts[2]) else { return nil }
+                let childName = parts.dropFirst(5).joined(separator: " ")
+                let meta      = row.meta ?? ""
+                let type      = meta.components(separatedBy: " · ").last ?? "Allowance"
+                let isToday   = Calendar.current.isDateInToday(row.createdAt ?? Date())
+                let dateStr   = isToday ? "Today" : formatter.string(from: row.createdAt ?? Date())
+                return TransferRecord(
+                    type:      type,
+                    childName: childName,
+                    date:      dateStr,
+                    amount:    amt)
+            }
+            await MainActor.run { transactions = records }
+        } catch {
+            print("❌ fetchTransferHistory: \(error)")
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// MARK: - Goal sync helper (free function)
+// ─────────────────────────────────────────────
+/// Called after a saving jar deposit — updates saved_amount on all
+/// active approved goals so the progress bar reflects the jar balance.
+func syncGoalsToSavingJar(childId: UUID, newJarBalance: Double) async {
+    do {
+        let goals: [Goal] = try await supabase
+            .from("goals")
+            .select()
+            .eq("child_id", value: childId.uuidString)
+            .eq("status", value: "approved")
+            .eq("is_achieved", value: false)
+            .execute()
+            .value
+
+        for goal in goals {
+            // Cap saved at target — goal can't exceed 100%
+            let newSaved = min(newJarBalance, goal.target)
+            let achieved = newSaved >= goal.target
+
+            struct GoalUpdate: Encodable {
+                let saved_amount: Double
+                let is_achieved:  Bool
+            }
+
+            try? await supabase
+                .from("goals")
+                .update(GoalUpdate(saved_amount: newSaved, is_achieved: achieved))
+                .eq("id", value: goal.id.uuidString)
+                .execute()
+
+            // Notify parent when goal is achieved
+            if achieved {
+                struct ParentNotify: Encodable {
+                    let parent_id: String; let title: String; let meta: String
+                }
+                if let parentIdStr = UserDefaults.standard.string(forKey: "parentId") {
+                    try? await supabase
+                        .from("parent_activity")
+                        .insert(ParentNotify(
+                            parent_id: parentIdStr,
+                            title:     "🎉 Goal achieved: \(goal.name)!",
+                            meta:      "Goal · \(Int(goal.target)) SAR"))
+                        .execute()
+                }
+            }
+        }
+    } catch {
+        print("❌ syncGoalsToSavingJar: \(error)")
     }
 }
 
@@ -276,6 +405,8 @@ struct SendMoneyPopup: View {
     @State private var showNote    = false
     @State private var showVoice   = false
     @State private var showError   = false
+    @State private var isSending   = false
+    @State private var voiceNoteUrl: String? = nil
 
     var canSend: Bool {
         guard let val = Double(amount), val > 0 else {
@@ -577,37 +708,35 @@ struct SendMoneyPopup: View {
             Button {
                 guard canSend,
                       let amt = Double(amount),
-                      amt > 0 else { return }
+                      amt > 0,
+                      !isSending else { return }
                 if !hasEnoughBalance {
                     withAnimation { showError = true }
                     return
                 }
                 Task { await sendAllowance(amount: amt) }
             } label: {
-                Text("Send")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(
-                        canSend
-                        ? LinearGradient(
-                            colors: [
-                                Color(hex: "1A3F7A"),
-                                Color(hex: "2D6DAB"),
-                                Color(hex: "1A3F7A")],
-                            startPoint: .leading,
-                            endPoint: .trailing)
-                        : LinearGradient(
-                            colors: [
-                                Color.nafTextGray,
-                                Color.nafTextGray],
-                            startPoint: .leading,
-                            endPoint: .trailing))
-                    .clipShape(RoundedRectangle(
-                        cornerRadius: 27))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 27)
+                        .fill(
+                            canSend && !isSending
+                            ? LinearGradient(
+                                colors: [Color(hex: "1A3F7A"), Color(hex: "2D6DAB"), Color(hex: "1A3F7A")],
+                                startPoint: .leading, endPoint: .trailing)
+                            : LinearGradient(
+                                colors: [Color.nafTextGray, Color.nafTextGray],
+                                startPoint: .leading, endPoint: .trailing))
+                        .frame(height: 54)
+                    if isSending {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("Send")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
             }
-            .disabled(!canSend)
+            .disabled(!canSend || isSending)
             .padding(.horizontal, 20)
             .padding(.bottom, 24)
         }
@@ -619,14 +748,24 @@ struct SendMoneyPopup: View {
 
     // ── Send allowance to Supabase ────────
     func sendAllowance(amount: Double) async {
+        guard !isSending else { return }
+        isSending = true
+
         let childrenToSend: [ChildProfile]
         if sendToAll {
             childrenToSend = children
         } else {
             guard let child = children.first(
                 where: { $0.id == selectedChildId })
-            else { return }
+            else { isSending = false; return }
             childrenToSend = [child]
+        }
+
+        // Final balance check before sending
+        let totalCost = amount * Double(childrenToSend.count)
+        guard parentVM.balance >= totalCost else {
+            await MainActor.run { showError = true; isSending = false }
+            return
         }
 
         do {
@@ -638,7 +777,6 @@ struct SendMoneyPopup: View {
                     .execute()
                     .value
 
-                // ── Use per-child jar split (falls back to 50/30/20)
                 let savingAmt   = amount * c.savePercent
                 let spendingAmt = amount * c.spendPercent
                 let givingAmt   = amount * c.givePercent
@@ -653,21 +791,21 @@ struct SendMoneyPopup: View {
 
                     try await supabase
                         .from("jars")
-                        .update([
-                            "balance": jar.balance + addAmount
-                        ])
+                        .update(["balance": jar.balance + addAmount])
                         .eq("id", value: jar.id.uuidString)
                         .execute()
 
-                    struct TransactionInsert: Encodable {
-                        let child_id: String
-                        let jar_id:   String
-                        let type:     String
-                        let amount:   Double
-                        let source:   String
-                        let note:     String
+                    if jar.type == .saving && addAmount > 0 {
+                        await syncGoalsToSavingJar(
+                            childId:       c.id,
+                            newJarBalance: jar.balance + addAmount)
                     }
 
+                    struct TransactionInsert: Encodable {
+                        let child_id: String; let jar_id: String
+                        let type: String; let amount: Double
+                        let source: String; let note: String
+                    }
                     try await supabase
                         .from("transactions")
                         .insert(TransactionInsert(
@@ -676,17 +814,36 @@ struct SendMoneyPopup: View {
                             type:     "deposit",
                             amount:   addAmount,
                             source:   "allowance",
-                            note:     note.isEmpty
-                                ? selectedType.rawValue
-                                : note))
+                            note:     note.isEmpty ? selectedType.rawValue : note))
                         .execute()
                 }
 
+                // If voice note attached, log to child activity
+                if let vUrl = voiceNoteUrl, !vUrl.isEmpty {
+                    struct VoiceNoteActivity: Encodable {
+                        let child_id: String; let title: String; let meta: String
+                        let sf_symbol: String; let jar_color: String
+                        let amount: Double; let voice_note_url: String
+                    }
+                    try? await supabase
+                        .from("child_activity")
+                        .insert(VoiceNoteActivity(
+                            child_id:       c.id.uuidString,
+                            title:          "🎙️ Voice note from your parent",
+                            meta:           "Tap to listen",
+                            sf_symbol:      "mic.fill",
+                            jar_color:      "blue",
+                            amount:         0,
+                            voice_note_url: vUrl))
+                        .execute()
+                }
+
+                await parentVM.sendMoney(
+                    to:     c.name,
+                    amount: amount,
+                    type:   selectedType.rawValue)
+
                 await MainActor.run {
-                    parentVM.sendMoney(
-                        to:     c.name,
-                        amount: amount,
-                        type:   selectedType.rawValue)
                     transactions.insert(
                         TransferRecord(
                             type:      selectedType.rawValue,
@@ -697,12 +854,11 @@ struct SendMoneyPopup: View {
                 }
             }
 
-            await MainActor.run {
-                isPresented = false
-            }
+            await MainActor.run { isPresented = false }
 
         } catch {
             print("❌ sendAllowance error: \(error)")
+            await MainActor.run { isSending = false }
         }
     }
 }
@@ -1193,115 +1349,166 @@ struct PendingRequestCard: View {
                 .background(pillBg)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             HStack(spacing: 10) {
+                // ── APPROVE ──
                 Button {
                     withAnimation { request.isApproved = true }
-                    if let goalId = request.goalId {
-                        Task {
-                            // Update goal status
+                    Task {
+                        if let goalId = request.goalId {
+                            // Goal request — approve it
                             try? await supabase
                                 .from("goals")
                                 .update(["status": "approved"])
                                 .eq("id", value: goalId.uuidString)
                                 .execute()
 
-                            // Get child_id from goal
-                            struct GoalRow: Codable {
-                                let child_id: String
-                                let title: String
-                            }
+                            struct GoalRow: Codable { let child_id: String; let title: String }
                             if let goal = try? await supabase
-                                .from("goals")
-                                .select("child_id, title")
+                                .from("goals").select("child_id, title")
                                 .eq("id", value: goalId.uuidString)
-                                .single()
-                                .execute()
-                                .value as GoalRow {
-
-                                struct ChildActivityInsert: Encodable {
-                                    let child_id:  String
-                                    let title:     String
-                                    let meta:      String
-                                    let sf_symbol: String
-                                    let jar_color: String
-                                    let amount:    Double
+                                .single().execute().value as GoalRow {
+                                struct CAI: Encodable {
+                                    let child_id: String; let title: String; let meta: String
+                                    let sf_symbol: String; let jar_color: String; let amount: Double
                                 }
-
-                                try? await supabase
-                                    .from("child_activity")
-                                    .insert(ChildActivityInsert(
-                                        child_id:  goal.child_id,
-                                        title:     "🎉 Your goal '\(goal.title)' was approved!",
-                                        meta:      "Parent approved",
-                                        sf_symbol: "checkmark.circle.fill",
-                                        jar_color: "green",
-                                        amount:    0))
+                                try? await supabase.from("child_activity")
+                                    .insert(CAI(child_id: goal.child_id,
+                                                title: "🎉 Your goal '\(goal.title)' was approved!",
+                                                meta: "Parent approved",
+                                                sf_symbol: "checkmark.circle.fill",
+                                                jar_color: "green", amount: 0))
                                     .execute()
+                            }
+
+                        } else if let activityId = request.activityId {
+                            // Jar deposit request — delete from parent_activity (it's handled)
+                            // and notify child
+                            try? await supabase
+                                .from("parent_activity")
+                                .delete()
+                                .eq("id", value: activityId.uuidString)
+                                .execute()
+
+                            // Use child_id directly — no name lookup
+                            if let cid = request.childId,
+                               let children = try? await supabase
+                                .from("child_profile").select()
+                                .eq("id", value: cid.uuidString)
+                                .execute()
+                                .value as [ChildProfile],
+                               let child = children.first {
+
+                                let desc = request.description
+                                struct CAI: Encodable {
+                                    let child_id: String; let title: String; let meta: String
+                                    let sf_symbol: String; let jar_color: String; let amount: Double
+                                }
+                                try? await supabase.from("child_activity")
+                                    .insert(CAI(child_id: child.id.uuidString,
+                                                title: "✅ Your deposit request was approved!",
+                                                meta: desc,
+                                                sf_symbol: "checkmark.circle.fill",
+                                                jar_color: "green",
+                                                amount: request.amount))
+                                    .execute()
+
+                                // Actually deposit the money to the correct jar
+                                let jarName: String
+                                if desc.contains("Saving") { jarName = "saving" }
+                                else if desc.contains("Giving") { jarName = "giving" }
+                                else { jarName = "spending" }
+
+                                if let jars = try? await supabase
+                                    .from("jars").select()
+                                    .eq("child_id", value: child.id.uuidString)
+                                    .eq("type", value: jarName)
+                                    .execute()
+                                    .value as [Jar],
+                                   let jar = jars.first {
+                                    try? await supabase
+                                        .from("jars")
+                                        .update(["balance": jar.balance + request.amount])
+                                        .eq("id", value: jar.id.uuidString)
+                                        .execute()
+                                }
                             }
                         }
                     }
                 } label: {
-                    Text("Approve")                        .font(.system(
-                            size: 14, weight: .semibold))
+                    Text("Approve")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 42)
                         .background(Color(hex: "2D7A4F"))
-                        .clipShape(RoundedRectangle(
-                            cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
+
+                // ── DECLINE ──
                 Button {
                     withAnimation { request.isApproved = false }
-                    if let goalId = request.goalId {
-                        Task {
+                    Task {
+                        if let goalId = request.goalId {
                             try? await supabase
                                 .from("goals")
                                 .update(["status": "rejected"])
                                 .eq("id", value: goalId.uuidString)
                                 .execute()
 
-                            struct GoalRow: Codable {
-                                let child_id: String
-                                let title: String
-                            }
+                            struct GoalRow: Codable { let child_id: String; let title: String }
                             if let goal = try? await supabase
-                                .from("goals")
-                                .select("child_id, title")
+                                .from("goals").select("child_id, title")
                                 .eq("id", value: goalId.uuidString)
-                                .single()
-                                .execute()
-                                .value as GoalRow {
-
-                                struct ChildActivityInsert: Encodable {
-                                    let child_id:  String
-                                    let title:     String
-                                    let meta:      String
-                                    let sf_symbol: String
-                                    let jar_color: String
-                                    let amount:    Double
+                                .single().execute().value as GoalRow {
+                                struct CAI: Encodable {
+                                    let child_id: String; let title: String; let meta: String
+                                    let sf_symbol: String; let jar_color: String; let amount: Double
                                 }
+                                try? await supabase.from("child_activity")
+                                    .insert(CAI(child_id: goal.child_id,
+                                                title: "❌ Your goal '\(goal.title)' was rejected",
+                                                meta: "Parent rejected",
+                                                sf_symbol: "xmark.circle.fill",
+                                                jar_color: "red", amount: 0))
+                                    .execute()
+                            }
 
-                                try? await supabase
-                                    .from("child_activity")
-                                    .insert(ChildActivityInsert(
-                                        child_id:  goal.child_id,
-                                        title:     "❌ Your goal '\(goal.title)' was rejected",
-                                        meta:      "Parent rejected",
-                                        sf_symbol: "xmark.circle.fill",
-                                        jar_color: "red",
-                                        amount:    0))
+                        } else if let activityId = request.activityId {
+                            // Remove jar request and notify child
+                            try? await supabase
+                                .from("parent_activity")
+                                .delete()
+                                .eq("id", value: activityId.uuidString)
+                                .execute()
+
+                            if let cid = request.childId,
+                               let children = try? await supabase
+                                .from("child_profile").select()
+                                .eq("id", value: cid.uuidString)
+                                .execute()
+                                .value as [ChildProfile],
+                               let child = children.first {
+                                struct CAI: Encodable {
+                                    let child_id: String; let title: String; let meta: String
+                                    let sf_symbol: String; let jar_color: String; let amount: Double
+                                }
+                                try? await supabase.from("child_activity")
+                                    .insert(CAI(child_id: child.id.uuidString,
+                                                title: "❌ Your deposit request was declined",
+                                                meta: request.description,
+                                                sf_symbol: "xmark.circle.fill",
+                                                jar_color: "red", amount: 0))
                                     .execute()
                             }
                         }
                     }
                 } label: {
-                    Text("Decline")                        .font(.system(
-                            size: 14, weight: .semibold))
+                    Text("Decline")
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 42)
                         .background(Color(hex: "8B1A1A"))
-                        .clipShape(RoundedRectangle(
-                            cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
             }
         }

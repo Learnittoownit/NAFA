@@ -16,9 +16,22 @@
 		46F6795F2FBC8A6700E06CDE /* nafaqati.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = nafaqati.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		463AA8942FD19EF7009C5775 /* Exceptions for "nafaqati" folder in "nafaqati" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 46F6795E2FBC8A6700E06CDE /* nafaqati */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		46F679612FBC8A6700E06CDE /* nafaqati */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				463AA8942FD19EF7009C5775 /* Exceptions for "nafaqati" folder in "nafaqati" target */,
+			);
 			path = nafaqati;
 			sourceTree = "<group>";
 		};
@@ -300,9 +313,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5R7252T64J;
+				DEVELOPMENT_TEAM = D53BL9362A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nafaqati/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nafaqati needs the microphone to send voice notes to your children";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -333,9 +348,11 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5R7252T64J;
+				DEVELOPMENT_TEAM = D53BL9362A;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = nafaqati/Info.plist;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Nafaqati needs the microphone to send voice notes to your children";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

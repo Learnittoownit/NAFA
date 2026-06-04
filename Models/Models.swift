@@ -133,12 +133,13 @@ struct Goal: Codable, Identifiable, Equatable {
     }
 }// ─── CHILD ACTIVITY ITEM ──────────────────
 struct ChildActivityItem: Identifiable, Equatable, Codable {
-    var id:        UUID   = UUID()
-    var name:      String
-    var timestamp: Date   = Date()
-    var amount:    Double
-    var jarColor:  String
-    var sfSymbol:  String
+    var id:           UUID   = UUID()
+    var name:         String
+    var timestamp:    Date   = Date()
+    var amount:       Double
+    var jarColor:     String
+    var sfSymbol:     String
+    var voiceNoteUrl: String? = nil
 }
 
 // ─── ALLOWANCE ────────────────────────────
