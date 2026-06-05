@@ -4,9 +4,5 @@
 <dict>
 	<key></key>
 	<string></string>
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict/>
-	</array>
 </dict>
 </plist>
