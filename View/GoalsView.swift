@@ -18,8 +18,9 @@ struct GoalsView: View {
     @Binding var goals:    [Goal]
     @Binding var activity: [ChildActivityItem]
     var onGoalAdded:       () -> Void
-    @State private var activeSheet:  GoalSheet?
-    @State private var showHistory = false
+    @State private var activeSheet:   GoalSheet?
+    @State private var showHistory  = false
+    @State private var goalToDelete: Goal? = nil
     let maxGoals = 5
 
     let goalIdeas: [(String, String)] = [
@@ -94,6 +95,40 @@ struct GoalsView: View {
                     }
                 }
             }
+        }
+        .confirmationDialog(
+            "Are you sure? 🗑️",
+            isPresented: Binding(
+                get: { goalToDelete != nil },
+                set: { if !$0 { goalToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Yes, delete it", role: .destructive) {
+                guard let goal = goalToDelete else { return }
+                withAnimation {
+                    activity.insert(ChildActivityItem(
+                        name: "Deleted goal: \(goal.name)",
+                        amount: 0, jarColor: "red", sfSymbol: "trash"), at: 0)
+                    if let i = goals.firstIndex(where: { $0.id == goal.id }) {
+                        goals[i].status = "deleted"
+                    }
+                    Task {
+                        try? await supabase.from("goals")
+                            .update(["status": "deleted"])
+                            .eq("id", value: goal.id.uuidString).execute()
+                        await logChildActivity(title: "Deleted goal: \(goal.name)", sfSymbol: "trash", jarColor: "red")
+                        let cn = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
+                        await notifyParent(title: "🗑️ \(cn) deleted goal: \(goal.name)", meta: "Goal deleted · Target was \(Int(goal.target)) SAR")
+                    }
+                }
+                goalToDelete = nil
+            }
+            Button("No, keep it", role: .cancel) {
+                goalToDelete = nil
+            }
+        } message: {
+            Text("This goal will be moved to your History.")
         }
         .fullScreenCover(item: $activeSheet) { sheet in
             switch sheet {
@@ -228,7 +263,7 @@ struct GoalsView: View {
     var activeSection: some View {
         VStack(spacing: 20) {
             let activeGoals = goals.filter {
-                $0.status != "rejected"
+                $0.status != "rejected" && $0.status != "deleted"
             }
 
             if activeGoals.isEmpty {
@@ -381,7 +416,7 @@ struct GoalsView: View {
     // ── History section ───────────────────
     var historySection: some View {
         let historyGoals = goals.filter {
-            $0.status == "rejected"
+            $0.status == "rejected" || $0.status == "deleted"
         }
 
         return VStack(spacing: 12) {
@@ -447,15 +482,12 @@ struct GoalsView: View {
                     .foregroundColor(Color(hex: "8A9BB0"))
             }
             Spacer()
-            Text("Rejected")
-                .font(.system(
-                    size: 11,
-                    weight: .semibold,
-                    design: .rounded))
-                .foregroundColor(Color(hex: "C62828"))
+            Text(goal.status == "deleted" ? "Deleted" : "Rejected")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(goal.status == "deleted" ? Color(hex: "555555") : Color(hex: "C62828"))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Color(hex: "FFEBEE"))
+                .background(goal.status == "deleted" ? Color(hex: "EEEEEE") : Color(hex: "FFEBEE"))
                 .cornerRadius(10)
         }
         .padding(16)
@@ -554,39 +586,7 @@ struct GoalsView: View {
                 MilestoneDots(progress: goal.progress)
 
                 Button {
-                    withAnimation {
-                        let item = ChildActivityItem(
-                            name:     "Deleted goal: \(goal.name)",
-                            amount:   0,
-                            jarColor: "red",
-                            sfSymbol: "trash")
-                        activity.insert(item, at: 0)
-
-                        Task {
-                            try? await supabase
-                                .from("goals")
-                                .delete()
-                                .eq("id",
-                                    value: goal.id
-                                        .uuidString)
-                                .execute()
-
-                            await logChildActivity(
-                                title:    "Deleted goal: \(goal.name)",
-                                sfSymbol: "trash",
-                                jarColor: "red")
-
-                            let cn3 = UserDefaults.standard.string(forKey: "childName") ?? "Your child"
-                            await notifyParent(
-                                title: "🗑️ \(cn3) deleted goal: \(goal.name)",
-                                meta:  "Goal deleted · Target was \(Int(goal.target)) SAR")
-                        }
-
-                        if let i = goals.firstIndex(
-                            where: { $0.id == goal.id }) {
-                            goals.remove(at: i)
-                        }
-                    }
+                    goalToDelete = goal
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "trash")
@@ -864,3 +864,20 @@ struct MilestoneDots: View {
             : Color.white.opacity(0.2)
     }
 }
+
+// ─────────────────────────────────────────────
+// MARK: - Preview
+// ─────────────────────────────────────────────
+
+#Preview {
+    GoalsView(
+        goals: .constant([
+            Goal(name: "Bike", icon: "🚲", target: 200, saved: 50, days: 30),
+            Goal(name: "PlayStation", icon: "🎮", target: 500, saved: 0, days: 60, status: "rejected"),
+            Goal(name: "AirPods", icon: "🎧", target: 300, saved: 0, days: 30, status: "deleted")
+        ]),
+        activity: .constant([]),
+        onGoalAdded: {}
+    )
+}
+

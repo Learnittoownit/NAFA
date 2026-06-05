@@ -10,10 +10,14 @@ struct SetGoalView: View {
     @State private var selectedIcon     = "🎯"
     @State private var targetAmount     = ""
     @State private var selectedDays     = 30
+    @State private var customDays        = ""
+    @State private var isCustomSelected  = false
+    @State private var showCustomSheet   = false
     @State private var selectedPhoto:   PhotosPickerItem?
     @State private var goalImage:       UIImage?
     @State private var showCamera       = false
     @State private var useCustomPhoto   = false
+    @FocusState private var isAmountFocused: Bool
 
     let icons = [
         "🎨","🎸","⚽","📚","🚲","🎮",
@@ -24,10 +28,9 @@ struct SetGoalView: View {
     ]
 
     let deadlines: [(Int, String)] = [
-        (15, "2 Weeks"),
         (30, "1 Month"),
-        (90, "3 Months"),
         (60, "2 Months"),
+        (90, "3 Months"),
     ]
 
     var body: some View {
@@ -36,62 +39,67 @@ struct SetGoalView: View {
 
             VStack(spacing: 0) {
 
-                // ── Top bar ────────────────────
-                HStack {
-                    Button {
-                        if step == 1 { dismiss() }
-                        else { step = 1 }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                            Text("Back")
-                                .font(.system(
-                                    size: 15,
-                                    design: .rounded))
-                        }
-                        .foregroundColor(Color(hex: "1B3A6B"))
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 60)
-                .padding(.bottom, 16)
-
-                // ── Progress bar ───────────────
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(hex: "185FA5"))
-                        .frame(height: 5)
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(step == 2
-                              ? Color(hex: "185FA5")
-                              : Color(hex: "D0D7E4"))
-                        .frame(height: 5)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-
-                // ── Title ──────────────────────
-                VStack(spacing: 4) {
-                    Text("Set New Goal")
-                        .font(.system(
-                            size: 22,
-                            weight: .bold,
-                            design: .rounded))
-                        .foregroundColor(Color(hex: "1B3A6B"))
-                    Text("Create your savings goal")
-                        .font(.system(
-                            size: 13,
-                            design: .rounded))
-                        .foregroundColor(Color(hex: "8A9BB0"))
-                }
-                .padding(.bottom, 20)
-
-                // ── Content ────────────────────
+                // ── Full page scroll ───────────
                 ScrollView(showsIndicators: false) {
-                    if step == 1 { step1Content }
-                    else { step2Content }
+                    VStack(spacing: 0) {
+
+                        // ── Top bar ────────────────────
+                        HStack {
+                            Button {
+                                if step == 1 { dismiss() }
+                                else { step = 1 }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.left")
+                                    Text("Back")
+                                        .font(.system(
+                                            size: 15,
+                                            design: .rounded))
+                                }
+                                .foregroundColor(Color(hex: "1B3A6B"))
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 60)
+                        .padding(.bottom, 16)
+
+                        // ── Progress bar ───────────────
+                        HStack(spacing: 8) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color(hex: "185FA5"))
+                                .frame(height: 5)
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(step == 2
+                                      ? Color(hex: "185FA5")
+                                      : Color(hex: "D0D7E4"))
+                                .frame(height: 5)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+
+                        // ── Title ──────────────────────
+                        VStack(spacing: 4) {
+                            Text("Set New Goal")
+                                .font(.system(
+                                    size: 22,
+                                    weight: .bold,
+                                    design: .rounded))
+                                .foregroundColor(Color(hex: "1B3A6B"))
+                            Text("Create your savings goal")
+                                .font(.system(
+                                    size: 13,
+                                    design: .rounded))
+                                .foregroundColor(Color(hex: "8A9BB0"))
+                        }
+                        .padding(.bottom, 20)
+
+                        // ── Content ────────────────────
+                        if step == 1 { step1Content }
+                        else { step2Content }
+                    }
                 }
+                .scrollDismissesKeyboard(.immediately)
 
                 // ── Bottom button ──────────────
                 Button {
@@ -133,15 +141,73 @@ struct SetGoalView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
                     .background(
-                        goalName.isEmpty && step == 1
+                        (goalName.isEmpty && step == 1) ||
+                        (step == 2 && (targetAmount.isEmpty || (Double(targetAmount) ?? 0) <= 0))
                         ? Color(hex: "8A9BB0")
                         : Color(hex: "185FA5"))
                     .cornerRadius(27)
                 }
-                .disabled(goalName.isEmpty && step == 1)
+                .disabled(
+                    (goalName.isEmpty && step == 1) ||
+                    (step == 2 && (targetAmount.isEmpty || (Double(targetAmount) ?? 0) <= 0))
+                )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 40)
                 .padding(.top, 12)
+            }
+        }
+        .overlay {
+            if showCustomSheet {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture { showCustomSheet = false }
+
+                    VStack(spacing: 20) {
+                        Text("How long is your goal? 🎯")
+                            .font(.system(size: 20, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(hex: "1B3A6B"))
+
+                        HStack {
+                            TextField("e.g. 45", text: $customDays)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.center)
+                                .font(.system(size: 32, weight: .bold, design: .rounded))
+                                .foregroundColor(Color(hex: "185FA5"))
+                                .frame(width: 120)
+                            Text("days")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(Color(hex: "8A9BB0"))
+                        }
+                        .padding(16)
+                        .background(Color(hex: "F4F6FA"))
+                        .cornerRadius(14)
+
+                        Button {
+                            if let d = Int(customDays), d > 0 {
+                                selectedDays     = d
+                                isCustomSelected = true
+                            }
+                            showCustomSheet = false
+                        } label: {
+                            Text("Confirm")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(
+                                    customDays.isEmpty || Int(customDays) == nil
+                                    ? Color(hex: "8A9BB0")
+                                    : Color(hex: "185FA5"))
+                                .cornerRadius(25)
+                        }
+                        .disabled(customDays.isEmpty || Int(customDays) == nil)
+                    }
+                    .padding(24)
+                    .background(Color.white)
+                    .cornerRadius(20)
+                    .padding(.horizontal, 32)
+                }
             }
         }
         .onChange(of: selectedPhoto) { _, newItem in
@@ -158,6 +224,7 @@ struct SetGoalView: View {
             CameraView(
                 image: $goalImage,
                 useCustomPhoto: $useCustomPhoto)
+            .ignoresSafeArea()
         }
     }
 
@@ -404,6 +471,7 @@ struct SetGoalView: View {
                             design: .rounded))
                         .foregroundColor(.black)
                         .tint(.black)
+                        .focused($isAmountFocused)
                     Spacer()
                     Text("SAR")
                         .font(.system(
@@ -464,31 +532,49 @@ struct SetGoalView: View {
                 ], spacing: 10) {
                     ForEach(deadlines, id: \.0) { deadline in
                         Button {
-                            selectedDays = deadline.0
+                            selectedDays     = deadline.0
+                            isCustomSelected = false
+                            customDays       = ""
                         } label: {
                             VStack(spacing: 4) {
                                 Text("\(deadline.0)")
-                                    .font(.system(
-                                        size: 24,
-                                        weight: .bold,
-                                        design: .rounded))
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
                                 Text(deadline.1)
-                                    .font(.system(
-                                        size: 13,
-                                        design: .rounded))
+                                    .font(.system(size: 13, design: .rounded))
                             }
                             .foregroundColor(
-                                selectedDays == deadline.0
-                                ? .white
-                                : Color(hex: "1B3A6B"))
+                                selectedDays == deadline.0 && !isCustomSelected
+                                ? .white : Color(hex: "1B3A6B"))
                             .frame(maxWidth: .infinity)
                             .frame(height: 72)
                             .background(
-                                selectedDays == deadline.0
-                                ? Color(hex: "185FA5")
-                                : Color(hex: "F4F6FA"))
+                                selectedDays == deadline.0 && !isCustomSelected
+                                ? Color(hex: "185FA5") : Color(hex: "F4F6FA"))
                             .cornerRadius(16)
                         }
+                    }
+
+                    // ── Custom option ──────────────
+                    Button {
+                        showCustomSheet = true
+                    } label: {
+                        VStack(spacing: 4) {
+                            if isCustomSelected, let d = Int(customDays), d > 0 {
+                                Text("\(d)")
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                            } else {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(isCustomSelected ? .white : Color(hex: "1B3A6B"))
+                            }
+                            Text("Custom")
+                                .font(.system(size: 13, design: .rounded))
+                        }
+                        .foregroundColor(isCustomSelected ? .white : Color(hex: "1B3A6B"))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 72)
+                        .background(isCustomSelected ? Color(hex: "185FA5") : Color(hex: "F4F6FA"))
+                        .cornerRadius(16)
                     }
                 }
             }
@@ -500,6 +586,77 @@ struct SetGoalView: View {
             Spacer().frame(height: 8)
         }
     }
+}
+
+// ─────────────────────────────────────────────
+// MARK: - Custom Days Sheet
+// ─────────────────────────────────────────────
+
+struct CustomDaysSheet: View {
+    @Binding var customDays: String
+    let onConfirm: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.gray.opacity(0.3))
+                .frame(width: 40, height: 4)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
+            Text("How long is your goal? 🎯")
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundColor(Color(hex: "1B3A6B"))
+                .padding(.bottom, 20)
+
+            HStack {
+                TextField("e.g. 45", text: $customDays)
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.center)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: "185FA5"))
+                    .focused($isFocused)
+                Text("days")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(hex: "8A9BB0"))
+            }
+            .padding(16)
+            .background(Color(hex: "F4F6FA"))
+            .cornerRadius(14)
+            .padding(.horizontal, 24)
+
+            Spacer().frame(height: 20)
+
+            Button {
+                onConfirm()
+                dismiss()
+            } label: {
+                Text("Confirm")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        customDays.isEmpty || Int(customDays) == nil || Int(customDays)! <= 0
+                        ? Color(hex: "8A9BB0")
+                        : Color(hex: "185FA5"))
+                    .cornerRadius(27)
+            }
+            .disabled(customDays.isEmpty || Int(customDays) == nil || Int(customDays)! <= 0)
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
+        }
+        .onAppear { isFocused = true }
+    }
+}
+
+// ─────────────────────────────────────────────
+// MARK: - Preview
+// ─────────────────────────────────────────────
+
+#Preview {
+    SetGoalView { _ in }
 }
 
 // ── Camera view ──────────────────────────
@@ -554,3 +711,4 @@ struct CameraView: UIViewControllerRepresentable {
         }
     }
 }
+

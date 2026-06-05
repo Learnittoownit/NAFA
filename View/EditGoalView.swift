@@ -11,6 +11,9 @@ struct EditGoalView: View {
     @State private var selectedIcon     = "🎯"
     @State private var targetAmount     = ""
     @State private var selectedDays     = 30
+    @State private var customDays        = ""
+    @State private var isCustomSelected  = false
+    @State private var showCustomSheet   = false
     @State private var selectedPhoto:   PhotosPickerItem?
     @State private var goalImage:       UIImage?
     @State private var showCamera       = false
@@ -25,10 +28,9 @@ struct EditGoalView: View {
     ]
 
     let deadlines: [(Int, String)] = [
-        (15, "2 Weeks"),
         (30, "1 Month"),
-        (90, "3 Months"),
         (60, "2 Months"),
+        (90, "3 Months"),
     ]
 
     var body: some View {
@@ -169,6 +171,7 @@ struct EditGoalView: View {
             CameraView(
                 image: $goalImage,
                 useCustomPhoto: $useCustomPhoto)
+            .ignoresSafeArea()
         }
     }
 
@@ -506,31 +509,59 @@ struct EditGoalView: View {
                 ], spacing: 10) {
                     ForEach(deadlines, id: \.0) { deadline in
                         Button {
-                            selectedDays = deadline.0
+                            selectedDays     = deadline.0
+                            isCustomSelected = false
+                            customDays       = ""
                         } label: {
                             VStack(spacing: 4) {
                                 Text("\(deadline.0)")
-                                    .font(.system(
-                                        size: 24,
-                                        weight: .bold,
-                                        design: .rounded))
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
                                 Text(deadline.1)
-                                    .font(.system(
-                                        size: 13,
-                                        design: .rounded))
+                                    .font(.system(size: 13, design: .rounded))
                             }
                             .foregroundColor(
-                                selectedDays == deadline.0
-                                ? .white
-                                : Color(hex: "1B3A6B"))
+                                selectedDays == deadline.0 && !isCustomSelected
+                                ? .white : Color(hex: "1B3A6B"))
                             .frame(maxWidth: .infinity)
                             .frame(height: 72)
                             .background(
-                                selectedDays == deadline.0
-                                ? Color(hex: "185FA5")
-                                : Color(hex: "F4F6FA"))
+                                selectedDays == deadline.0 && !isCustomSelected
+                                ? Color(hex: "185FA5") : Color(hex: "F4F6FA"))
                             .cornerRadius(16)
                         }
+                    }
+
+                    // ── Custom option ──────────────
+                    Button {
+                        showCustomSheet = true
+                    } label: {
+                        VStack(spacing: 4) {
+                            if isCustomSelected, let d = Int(customDays), d > 0 {
+                                Text("\(d)")
+                                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                            } else {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(isCustomSelected ? .white : Color(hex: "1B3A6B"))
+                            }
+                            Text("Custom")
+                                .font(.system(size: 13, design: .rounded))
+                        }
+                        .foregroundColor(isCustomSelected ? .white : Color(hex: "1B3A6B"))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 72)
+                        .background(isCustomSelected ? Color(hex: "185FA5") : Color(hex: "F4F6FA"))
+                        .cornerRadius(16)
+                    }
+                    .sheet(isPresented: $showCustomSheet) {
+                        CustomDaysSheet(customDays: $customDays) {
+                            if let d = Int(customDays), d > 0 {
+                                selectedDays     = d
+                                isCustomSelected = true
+                            }
+                        }
+                        .presentationDetents([.height(280)])
+                        .presentationDragIndicator(.hidden)
                     }
                 }
             }
@@ -543,3 +574,18 @@ struct EditGoalView: View {
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// MARK: - Preview
+// ─────────────────────────────────────────────
+
+#Preview {
+    EditGoalView(goal: .constant(Goal(
+        name:   "New PlayStation",
+        icon:   "🎮",
+        target: 500,
+        saved:  120,
+        days:   30
+    )))
+}
+

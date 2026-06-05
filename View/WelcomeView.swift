@@ -11,20 +11,18 @@ struct WelcomeView: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // ── Top logo row ───────────────
-                    HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.nafNavy)
-                                .frame(width: 44, height: 44)
-                            Text("🪙")
-                                .font(.system(size: 22))
-                        }
+                    HStack(spacing: 6) {
+                        Image("AppLogoFull")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 80, height: 80)
+                            .clipShape(Circle())
                         VStack(alignment: .leading, spacing: 0) {
                             Text("Nafaqati")
-                                .font(.system(size: 15, weight: .bold))
+                                .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(Color.nafNavy)
-                            Text("نفقاتي")
-                                .font(.system(size: 12))
+                            Text("نفقتي")
+                                .font(.system(size: 20))
                                 .foregroundColor(Color.nafTextGray)
                         }
                     }
@@ -163,5 +161,10 @@ struct TimelineCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.nafLightCard)
         .cornerRadius(16)
+    }
+}
+#Preview {
+    NavigationStack {
+        WelcomeView(path: .constant(NavigationPath()))
     }
 }
