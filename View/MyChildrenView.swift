@@ -158,14 +158,7 @@ struct ChildRowCard: View {
                 Circle()
                     .fill(Color.nafLightCard)
                     .frame(width: 48, height: 48)
-                if let avatar = child.avatarUrl, !avatar.isEmpty {
-                    Text(avatar)
-                        .font(.system(size: 26))
-                } else {
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(Color.nafTextGray)
-                }
+                ChildAvatarView(avatar: child.avatarUrl ?? "", size: 48)
             }
 
             // ── Info ───────────────────────

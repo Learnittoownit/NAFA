@@ -665,29 +665,10 @@ struct SendMoneyPopup: View {
             }
 
             if showVoice {
-                VStack(spacing: 8) {
-                    Text("Tap to record a voice note")
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.8))
-                    Button { } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color(hex: "2D6DAB"))
-                                .frame(width: 50, height: 50)
-                            Image(systemName: "mic.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(Color(hex: "1B3A6B"))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                .transition(.opacity.combined(
-                    with: .move(edge: .top)))
+                VoiceNoteRecorder(voiceNoteUrl: $voiceNoteUrl)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if showError {

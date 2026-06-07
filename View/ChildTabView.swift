@@ -81,17 +81,43 @@ struct ChildTabView: View {
         else { return }
 
         do {
-            let fetchedGoals: [Goal] = try await supabase
+            // Fetch goals
+            var fetchedGoals: [Goal] = try await supabase
                 .from("goals").select()
                 .eq("child_id", value: childId.uuidString)
-                .neq("status", value: "deleted")
                 .execute().value
 
-            // Merge: keep locally deleted goals, add fresh ones from server
-            await MainActor.run {
-                let deletedGoals = goals.filter { $0.status == "deleted" }
-                goals = fetchedGoals + deletedGoals
+            // Fetch saving jar balance
+            let jars: [Jar] = try await supabase
+                .from("jars").select()
+                .eq("child_id", value: childId.uuidString)
+                .execute().value
+
+            let savingBalance = jars.first(where: { $0.type == .saving })?.balance ?? 0
+
+            // Sync approved goals' saved_amount with saving jar balance
+            for i in fetchedGoals.indices {
+                if fetchedGoals[i].status == "approved" {
+                    let newSaved    = min(savingBalance, fetchedGoals[i].target)
+                    let achieved    = newSaved >= fetchedGoals[i].target
+                    fetchedGoals[i].saved       = newSaved
+                    fetchedGoals[i].isAchieved  = achieved
+
+                    // Update Supabase too
+                    struct GoalUpdate: Encodable {
+                        let saved_amount: Double
+                        let is_achieved:  Bool
+                    }
+                    try? await supabase
+                        .from("goals")
+                        .update(GoalUpdate(saved_amount: newSaved, is_achieved: achieved))
+                        .eq("id", value: fetchedGoals[i].id.uuidString)
+                        .execute()
+                }
             }
+
+            await MainActor.run { goals = fetchedGoals }
+
         } catch {
             if let data    = UserDefaults.standard.data(forKey: "savedGoals"),
                let decoded = try? JSONDecoder().decode([Goal].self, from: data) {
@@ -105,4 +131,3 @@ struct ChildTabView: View {
         }
     }
 }
-

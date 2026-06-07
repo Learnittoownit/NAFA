@@ -15,8 +15,6 @@ struct AddChildView: View {
     @State private var childName:       String    = ""
     @State private var age:             String    = ""
 
-    @State private var nameError:        String    = ""
-    @State private var ageError:         String    = ""
     @State private var selectedGender:  String    = ""
     @State private var selectedAvatar:  String    = ""
     @State private var selectedImage:   UIImage?  = nil   // real photo if taken
@@ -25,9 +23,7 @@ struct AddChildView: View {
     var canProceed: Bool {
         !childName.trimmingCharacters(in: .whitespaces).isEmpty &&
         !age.isEmpty &&
-        !selectedGender.isEmpty &&
-        nameError.isEmpty &&
-        ageError.isEmpty
+        !selectedGender.isEmpty
     }
 
     var isLastChild: Bool { childIndex == totalChildren }
@@ -117,45 +113,6 @@ struct AddChildView: View {
                             placeholder: "e.g. Shahad",
                             text: $childName
                         )
-                        .onChange(of: childName) { newValue in
-                            if newValue.contains(where: { !$0.isLetter && !$0.isWhitespace }) {
-                                nameError = "Please enter a valid name — letters only"
-                            } else {
-                                nameError = ""
-                            }
-                        }
-
-                        if !nameError.isEmpty {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.system(size: 13))
-                                Text(nameError)
-                                    .font(.system(size: 13))
-                            }
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-
-                        NafField(label: "Age", placeholder: "7 – 12",
-                                 text: $age, keyboardType: .numberPad)
-                        .onChange(of: age) { newValue in
-                            if newValue.contains(where: { !$0.isNumber }) {
-                                ageError = "Please enter a valid age — numbers only"
-                            } else {
-                                ageError = ""
-                            }
-                        }
-
-                        if !ageError.isEmpty {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.system(size: 13))
-                                Text(ageError)
-                                    .font(.system(size: 13))
-                            }
-                            .foregroundColor(.red)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
 
                         // ── Gender ─────────────────────────
                         VStack(alignment: .leading, spacing: 8) {
@@ -175,6 +132,9 @@ struct AddChildView: View {
                                 Spacer()
                             }
                         }
+
+                        NafField(label: "Age", placeholder: "7 – 12",
+                                 text: $age, keyboardType: .numberPad)
 
                         if let error = childVM.errorMessage {
                             HStack(spacing: 6) {
@@ -254,6 +214,7 @@ struct AddChildView: View {
             name:     childName.trimmingCharacters(in: .whitespaces),
             age:      Int(age) ?? 0,
             avatar:   selectedAvatar,
+            photo:    selectedImage,
             pin:      "",
             parentId: parentId
         )
@@ -518,4 +479,3 @@ struct AvatarPickerSheet: View {
         .environmentObject(AuthViewModel())
     }
 }
-

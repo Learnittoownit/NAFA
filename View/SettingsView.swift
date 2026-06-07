@@ -119,7 +119,7 @@ struct SettingsView: View {
                                                     .fill(avatarBg(for: idx))
                                                     .frame(width: 42, height: 42)
                                                 if let avatar = child.avatarUrl, !avatar.isEmpty {
-                                                    Text(avatar).font(.system(size: 22))
+                                                    ChildAvatarView(avatar: avatar, size: 38)
                                                 } else {
                                                     Text(String(child.name.prefix(1)))
                                                         .font(.system(size: 16, weight: .bold))
@@ -794,7 +794,7 @@ struct ChildProfileEditSheet: View {
                 if resolvedAvatar.isEmpty {
                     Image(systemName: "person.fill").font(.system(size: 36)).foregroundColor(Color(hex: "2D6DAB"))
                 } else {
-                    Text(resolvedAvatar).font(.system(size: 44))
+                    ChildAvatarView(avatar: resolvedAvatar, size: 76)
                 }
             }
             ZStack {
@@ -858,13 +858,23 @@ struct ChildProfileEditSheet: View {
         isSaving = true
         let trimmedName = nameText.trimmingCharacters(in: .whitespaces)
         let age = Int(ageText) ?? child.age
+
+        // Upload photo if a new one was selected
+        var finalAvatarUrl = selectedAvatar
+        if let photo = selectedImage {
+            let vm = ChildViewModel()
+            if let url = await vm.uploadChildPhoto(photo, parentId: child.parentId, childName: trimmedName) {
+                finalAvatarUrl = url
+            }
+        }
+
         struct ChildUpdate: Encodable {
             let name: String; let age: Int; let avatar_url: String
             let jar_save_percent: Int; let jar_spend_percent: Int; let jar_give_percent: Int
         }
         do {
             try await supabase.from("child_profile")
-                .update(ChildUpdate(name: trimmedName, age: age, avatar_url: selectedAvatar,
+                .update(ChildUpdate(name: trimmedName, age: age, avatar_url: finalAvatarUrl,
                                     jar_save_percent: savePercent, jar_spend_percent: spendPercent, jar_give_percent: givePercent))
                 .eq("id", value: child.id.uuidString).execute()
             await onSaved(); await MainActor.run { dismiss() }
@@ -1233,6 +1243,7 @@ struct AddChildFromSettingsView: View {
             name:     childName.trimmingCharacters(in: .whitespaces),
             age:      Int(age) ?? 0,
             avatar:   selectedAvatar,
+            photo:    selectedImage,
             pin:      "",
             parentId: parentId
         )

@@ -157,7 +157,7 @@ struct ChildCard: View {
                         ZStack {
                             Circle().fill(Color.white).frame(width: 50, height: 50)
                             if let avatar = child.avatarUrl, !avatar.isEmpty {
-                                Text(avatar).font(.system(size: 26))
+                                ChildAvatarView(avatar: avatar, size: 46)
                             } else {
                                 Image(systemName: "person.fill").font(.system(size: 22)).foregroundColor(Color(hex: "2D6DAB"))
                             }
@@ -536,4 +536,3 @@ struct RecentActivitySheet: View {
         }
     }
 }
-

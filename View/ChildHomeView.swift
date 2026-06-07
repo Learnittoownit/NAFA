@@ -18,7 +18,9 @@ struct ChildHomeView: View {
     let jarWidth:  CGFloat = 100
     let jarHeight: CGFloat = 112
 
-    var activeGoal: Goal?    { goals.first }
+    var activeGoal: Goal? {
+        goals.first { $0.status == "approved" && !$0.isAchieved }
+    }
     var totalBalance: Double { savingBal + givingBal + spendingBal }
 
     var greetingText: String {
@@ -133,8 +135,7 @@ struct ChildHomeView: View {
                             Circle()
                                 .fill(.white.opacity(0.08))
                                 .frame(width: 84, height: 84)
-                            Text(avatar)
-                                .font(.system(size: 52))
+                            ChildAvatarView(avatar: avatar, size: 84)
                         }
 
                         Spacer().frame(height: 10)
@@ -739,5 +740,48 @@ struct SignOutButton: View {
         } message: {
             Text("You can always come back with your code 🔑")
         }
+    }
+}
+
+// ═══════════════════════════════════════════════
+// MARK: - Smart Avatar View (emoji OR photo URL)
+// ═══════════════════════════════════════════════
+
+struct ChildAvatarView: View {
+    let avatar: String
+    let size: CGFloat
+
+    var isUrl: Bool {
+        avatar.hasPrefix("http://") || avatar.hasPrefix("https://")
+    }
+
+    var body: some View {
+        Group {
+            if isUrl, let url = URL(string: avatar) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let img):
+                        img.resizable()
+                            .scaledToFill()
+                            .frame(width: size, height: size)
+                            .clipShape(Circle())
+                    case .failure, .empty:
+                        fallbackView
+                    @unknown default:
+                        fallbackView
+                    }
+                }
+            } else {
+                Text(avatar.isEmpty ? "🧒" : avatar)
+                    .font(.system(size: size * 0.6))
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    private var fallbackView: some View {
+        Image(systemName: "person.fill")
+            .font(.system(size: size * 0.5))
+            .foregroundColor(Color(hex: "2D6DAB"))
     }
 }
