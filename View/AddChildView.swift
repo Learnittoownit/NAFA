@@ -168,16 +168,15 @@ struct AddChildView: View {
                         }
                         .disabled(!canProceed || childVM.isLoading)
 
-                        if totalChildren > 1 && !isLastChild {
-                            Button { navigateNext() } label: {
-                                HStack(spacing: 4) {
-                                    Text("Skip")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(Color.nafNavy)
-                                    Text("— Add more children later")
-                                        .font(.system(size: 15))
-                                        .foregroundColor(Color.nafTextGray)
-                                }
+                        // ── Skip button for ALL children ──
+                        Button { skipChild() } label: {
+                            HStack(spacing: 4) {
+                                Text("Skip")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundColor(Color.nafNavy)
+                                Text("— Add info later from Settings")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(Color.nafTextGray)
                             }
                         }
                     }
@@ -223,7 +222,6 @@ struct AddChildView: View {
             .execute()
             .value) ?? []
 
-        // childIndex is 1-based, so slot index is childIndex - 1
         let slotIndex = childIndex - 1
         if slotIndex < children.count {
             let child = children[slotIndex]
@@ -239,7 +237,6 @@ struct AddChildView: View {
     private func saveAndContinue() async {
         guard let parentId = authVM.currentUserId else { return }
 
-        // If child was already created, update instead of insert
         if let existingId = createdChildId {
             struct ChildUpdate: Encodable {
                 let name: String; let age: Int; let avatar_url: String
@@ -260,7 +257,6 @@ struct AddChildView: View {
             return
         }
 
-        // First time — create new child
         let success = await childVM.createChildProfile(
             name:     childName.trimmingCharacters(in: .whitespaces),
             age:      Int(age) ?? 0,
@@ -270,7 +266,6 @@ struct AddChildView: View {
             parentId: parentId
         )
         if success {
-            // Fetch the created child's ID to track it
             if let children = try? await supabase
                 .from("child_profile")
                 .select()
@@ -283,6 +278,19 @@ struct AddChildView: View {
                 await MainActor.run { createdChildId = child.id }
             }
             navigateNext()
+        }
+    }
+
+    private func skipChild() {
+        if isLastChild {
+            // Last child skipped → go directly to home
+            authVM.isLoggedIn = true
+        } else {
+            // Not last child → go to next child
+            path.append(OnboardingStep.addChild(
+                childIndex: childIndex + 1,
+                totalChildren: totalChildren
+            ))
         }
     }
 
@@ -393,7 +401,6 @@ struct AvatarPickerSheet: View {
                 .padding(.top, 12)
                 .padding(.bottom, 16)
 
-            // ── Option 1: Camera ──────────────────────
             Button { showCamera = true } label: {
                 HStack(spacing: 14) {
                     ZStack {
@@ -421,7 +428,6 @@ struct AvatarPickerSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 10)
 
-            // ── Option 2: Photo Library ───────────────
             PhotosPicker(selection: $photosItem, matching: .images) {
                 HStack(spacing: 14) {
                     ZStack {
@@ -453,13 +459,12 @@ struct AvatarPickerSheet: View {
                     if let data = try? await newItem?.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
                         selectedImage  = image
-                        selectedAvatar = ""   // clear emoji if photo chosen
+                        selectedAvatar = ""
                         showSheet = false
                     }
                 }
             }
 
-            // ── Divider ───────────────────────────────
             HStack {
                 Rectangle().fill(Color.nafLightCard).frame(height: 1)
                 Text("or pick a character")
@@ -472,12 +477,11 @@ struct AvatarPickerSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 14)
 
-            // ── Emoji grid ────────────────────────────
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(avatars, id: \.self) { avatar in
                     Button {
                         selectedAvatar = avatar
-                        selectedImage  = nil   // clear photo if emoji chosen
+                        selectedImage  = nil
                     } label: {
                         Text(avatar)
                             .font(.system(size: 26))
@@ -501,7 +505,6 @@ struct AvatarPickerSheet: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 20)
 
-            // ── Confirm button ────────────────────────
             Button { showSheet = false } label: {
                 Text("Confirm")
                     .font(.system(size: 16, weight: .semibold))
@@ -522,7 +525,7 @@ struct AvatarPickerSheet: View {
                 .ignoresSafeArea()
                 .onDisappear {
                     if selectedImage != nil {
-                        selectedAvatar = ""   // clear emoji if photo taken
+                        selectedAvatar = ""
                         showSheet = false
                     }
                 }

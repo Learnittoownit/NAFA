@@ -20,7 +20,7 @@ struct AllowanceSchedule: Codable, Identifiable {
     let childName:   String
     var nextDueDate: Date
     let isWeekly:    Bool
-    let weekDay:     String? // "Sun","Mon","Tue","Wed","Thu","Fri","Sat"
+    let weekDay:     String?
 
     init(id: UUID = UUID(), childName: String, nextDueDate: Date,
          isWeekly: Bool = false, weekDay: String? = nil) {
@@ -47,35 +47,35 @@ final class ParentViewModel: ObservableObject {
     @Published var activity: [ActivityItem]  = []
     @Published var isLoading: Bool           = false
 
-    // ── Multiple reminders stored in UserDefaults ──
     @Published var allowanceSchedules: [AllowanceSchedule] = [] {
         didSet { saveReminders() }
     }
 
     var parentId: UUID? = nil
 
-    // ── Active reminders (expired custom dates removed, weekly auto-advanced) ──
+    // ── Parent-specific reminders key ──────────────────────
+    private var remindersKey: String {
+        guard let parentId = parentId else { return "nafaqati_reminders_unknown" }
+        return "nafaqati_reminders_\(parentId.uuidString)"
+    }
+
     var activeSchedules: [AllowanceSchedule] {
         let today = Calendar.current.startOfDay(for: Date())
         return allowanceSchedules.compactMap { schedule in
             var s = schedule
             if s.isWeekly {
-                // If due date has passed, advance to next occurrence of the same weekday
                 while Calendar.current.startOfDay(for: s.nextDueDate) < today {
                     s.nextDueDate = Calendar.current.date(byAdding: .weekOfYear, value: 1, to: s.nextDueDate) ?? s.nextDueDate
                 }
                 return s
             } else {
-                // Custom date: show until date passes
                 return Calendar.current.startOfDay(for: s.nextDueDate) >= today ? s : nil
             }
         }
     }
 
-    // ── Keep old property for backward compatibility ──
     var allowanceSchedule: AllowanceSchedule? { activeSchedules.first }
 
-    // ── Reminder text for a single schedule ──
     func reminderText(for schedule: AllowanceSchedule) -> String {
         let days = Calendar.current.dateComponents(
             [.day],
@@ -89,25 +89,26 @@ final class ParentViewModel: ObservableObject {
         }
     }
 
-    // ── Legacy single reminderText ──
     var reminderText: String? {
         guard let s = activeSchedules.first else { return nil }
         return reminderText(for: s)
     }
 
     // ─────────────────────────────────────────
-    // MARK: - Reminders persistence
+    // MARK: - Reminders persistence (parent-specific)
     // ─────────────────────────────────────────
-    private let remindersKey = "nafaqati_reminders"
-
     func loadReminders() {
         guard let data = UserDefaults.standard.data(forKey: remindersKey),
               let decoded = try? JSONDecoder().decode([AllowanceSchedule].self, from: data)
-        else { return }
+        else {
+            allowanceSchedules = []
+            return
+        }
         allowanceSchedules = decoded
     }
 
     private func saveReminders() {
+        guard parentId != nil else { return }
         if let encoded = try? JSONEncoder().encode(allowanceSchedules) {
             UserDefaults.standard.set(encoded, forKey: remindersKey)
         }
@@ -118,7 +119,6 @@ final class ParentViewModel: ObservableObject {
     // ─────────────────────────────────────────
     func setReminder(childName: String, nextDueDate: Date,
                      isWeekly: Bool = true, weekDay: String? = nil) {
-        // Remove existing reminder for same child then add new one
         allowanceSchedules.removeAll { $0.childName == childName }
         let schedule = AllowanceSchedule(
             childName:   childName,
@@ -141,9 +141,9 @@ final class ParentViewModel: ObservableObject {
     // MARK: - Load all parent data from Supabase
     // ─────────────────────────────────────────
     func loadFromSupabase(parentId: UUID) async {
-        self.parentId = parentId
+        self.parentId = parentId   // ← set FIRST so remindersKey is correct
         isLoading     = true
-        loadReminders() // Load saved reminders on start
+        loadReminders()            // ← loads saved reminders without overwriting them
 
         do {
             struct ParentRow: Decodable {

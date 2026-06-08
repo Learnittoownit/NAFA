@@ -16,8 +16,8 @@ struct PendingRequest: Identifiable {
     let isPositive: Bool
     var isApproved: Bool? = nil
     var goalId:     UUID? = nil
-    var activityId: UUID? = nil  // for jar deposit requests
-    var childId:    UUID? = nil  // direct child ID — no name lookup needed
+    var activityId: UUID? = nil
+    var childId:    UUID? = nil
 }
 
 struct TransferRecord: Identifiable {
@@ -140,8 +140,14 @@ struct TransfersView: View {
                             children: children,
                             selectedChildId: $selectedReminderChildId,
                             onConfirm: {
-                                let child     = children.first(where: { $0.id == selectedReminderChildId }) ?? children.first
-                                let childName = child?.name ?? "your child"
+                                let child: ChildProfile?
+                                if children.count == 1 {
+                                    child = children.first
+                                } else {
+                                    child = children.first(where: { $0.id == selectedReminderChildId })
+                                }
+                                guard let child = child else { return }
+                                let childName = child.name
 
                                 if reminderMode == .repeat {
                                     let nextDate = nextOccurrence(of: selectedWeekDay)
@@ -258,7 +264,6 @@ struct TransfersView: View {
 
             var requests: [PendingRequest] = []
 
-            // ── 1. Goal requests (status = pending)
             for child in children {
                 let pendingGoals: [Goal] = try await supabase
                     .from("goals")
@@ -281,7 +286,6 @@ struct TransfersView: View {
                 }
             }
 
-            // ── 2. Jar deposit requests from parent_activity
             let jarActs: [ParentActivityRow] = try await supabase
                 .from("parent_activity")
                 .select()
@@ -354,11 +358,7 @@ struct TransfersView: View {
                 let type      = meta.components(separatedBy: " · ").last ?? "Allowance"
                 let isToday   = Calendar.current.isDateInToday(row.createdAt ?? Date())
                 let dateStr   = isToday ? "Today" : formatter.string(from: row.createdAt ?? Date())
-                return TransferRecord(
-                    type:      type,
-                    childName: childName,
-                    date:      dateStr,
-                    amount:    amt)
+                return TransferRecord(type: type, childName: childName, date: dateStr, amount: amt)
             }
             await MainActor.run { transactions = records }
         } catch {
@@ -368,52 +368,35 @@ struct TransfersView: View {
 }
 
 // ─────────────────────────────────────────────
-// MARK: - Goal sync helper (free function)
+// MARK: - Goal sync helper
 // ─────────────────────────────────────────────
 func syncGoalsToSavingJar(childId: UUID, newJarBalance: Double) async {
     do {
         let goals: [Goal] = try await supabase
-            .from("goals")
-            .select()
+            .from("goals").select()
             .eq("child_id", value: childId.uuidString)
             .eq("status", value: "approved")
             .eq("is_achieved", value: false)
-            .execute()
-            .value
+            .execute().value
 
         for goal in goals {
             let newSaved = min(newJarBalance, goal.target)
             let achieved = newSaved >= goal.target
-
-            struct GoalUpdate: Encodable {
-                let saved_amount: Double
-                let is_achieved:  Bool
-            }
-
-            try? await supabase
-                .from("goals")
+            struct GoalUpdate: Encodable { let saved_amount: Double; let is_achieved: Bool }
+            try? await supabase.from("goals")
                 .update(GoalUpdate(saved_amount: newSaved, is_achieved: achieved))
-                .eq("id", value: goal.id.uuidString)
-                .execute()
+                .eq("id", value: goal.id.uuidString).execute()
 
             if achieved {
-                struct ParentNotify: Encodable {
-                    let parent_id: String; let title: String; let meta: String
-                }
+                struct ParentNotify: Encodable { let parent_id: String; let title: String; let meta: String }
                 if let parentIdStr = UserDefaults.standard.string(forKey: "parentId") {
-                    try? await supabase
-                        .from("parent_activity")
-                        .insert(ParentNotify(
-                            parent_id: parentIdStr,
-                            title:     "🎉 Goal achieved: \(goal.name)!",
-                            meta:      "Goal · \(Int(goal.target)) SAR"))
+                    try? await supabase.from("parent_activity")
+                        .insert(ParentNotify(parent_id: parentIdStr, title: "🎉 Goal achieved: \(goal.name)!", meta: "Goal · \(Int(goal.target)) SAR"))
                         .execute()
                 }
             }
         }
-    } catch {
-        print("❌ syncGoalsToSavingJar: \(error)")
-    }
+    } catch { print("❌ syncGoalsToSavingJar: \(error)") }
 }
 
 // ═══════════════════════════════════════════════
@@ -447,37 +430,27 @@ struct SendMoneyPopup: View {
         return parentVM.balance >= val
     }
 
-    var selectedChildName: String {
-        if sendToAll { return "All" }
-        return children.first(where: { $0.id == selectedChildId })?.name ?? ""
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             Text("Send money")
                 .font(.system(size: 20, weight: .bold))
                 .foregroundColor(Color(hex: "1B3A6B"))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.horizontal, 20).padding(.top, 20)
 
             Spacer().frame(height: 16)
 
             HStack(spacing: 10) {
                 ForEach(SendMoneyType.allCases, id: \.self) { type in
-                    Button {
-                        withAnimation { selectedType = type }
-                    } label: {
+                    Button { withAnimation { selectedType = type } } label: {
                         HStack(spacing: 5) {
                             Text(type.emoji).font(.system(size: 13))
-                            Text(type.rawValue)
-                                .font(.system(size: 13, weight: .medium))
+                            Text(type.rawValue).font(.system(size: 13, weight: .medium))
                                 .foregroundColor(selectedType == type ? Color(hex: "2D6DAB") : Color.nafTextGray)
                         }
                         .padding(.horizontal, 14).padding(.vertical, 9)
                         .background(Color.white).clipShape(Capsule())
-                        .overlay(Capsule().stroke(
-                            selectedType == type ? Color(hex: "2D6DAB") : Color.nafLightCard, lineWidth: 1.5))
+                        .overlay(Capsule().stroke(selectedType == type ? Color(hex: "2D6DAB") : Color.nafLightCard, lineWidth: 1.5))
                     }
                 }
                 Spacer()
@@ -487,57 +460,36 @@ struct SendMoneyPopup: View {
             Spacer().frame(height: 16)
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("For who?")
-                    .font(.system(size: 13))
-                    .foregroundColor(Color.nafTextGray)
-                    .padding(.horizontal, 20)
-
+                Text("For who?").font(.system(size: 13)).foregroundColor(Color.nafTextGray).padding(.horizontal, 20)
                 if children.isEmpty {
-                    Text("No children linked yet")
-                        .font(.system(size: 13))
-                        .foregroundColor(Color.nafTextGray)
-                        .padding(.horizontal, 20)
+                    Text("No children linked yet").font(.system(size: 13)).foregroundColor(Color.nafTextGray).padding(.horizontal, 20)
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
                             ForEach(children) { child in
                                 let isSel = !sendToAll && selectedChildId == child.id
-                                Button {
-                                    sendToAll = false
-                                    selectedChildId = child.id
-                                } label: {
+                                Button { sendToAll = false; selectedChildId = child.id } label: {
                                     VStack(spacing: 4) {
                                         ZStack {
-                                            Circle()
-                                                .fill(Color(hex: "F0F4FA"))
-                                                .frame(width: 46, height: 46)
+                                            Circle().fill(Color(hex: "F0F4FA")).frame(width: 46, height: 46)
                                                 .overlay(Circle().stroke(isSel ? Color(hex: "2D6DAB") : Color.clear, lineWidth: 2))
-                                            Text(String(child.name.prefix(1)))
-                                                .font(.system(size: 17, weight: .bold))
+                                            Text(String(child.name.prefix(1))).font(.system(size: 17, weight: .bold))
                                                 .foregroundColor(isSel ? Color(hex: "2D6DAB") : Color.nafTextGray)
                                         }
-                                        Text(child.name)
-                                            .font(.system(size: 11))
+                                        Text(child.name).font(.system(size: 11))
                                             .foregroundColor(isSel ? Color(hex: "2D6DAB") : Color.nafTextGray)
                                     }
                                 }
                             }
-                            Button {
-                                sendToAll = true
-                                selectedChildId = nil
-                            } label: {
+                            Button { sendToAll = true; selectedChildId = nil } label: {
                                 VStack(spacing: 4) {
                                     ZStack {
-                                        Circle()
-                                            .fill(Color(hex: "F0F4FA"))
-                                            .frame(width: 46, height: 46)
+                                        Circle().fill(Color(hex: "F0F4FA")).frame(width: 46, height: 46)
                                             .overlay(Circle().stroke(sendToAll ? Color(hex: "2D6DAB") : Color.clear, lineWidth: 2))
-                                        Text("All")
-                                            .font(.system(size: 11, weight: .bold))
+                                        Text("All").font(.system(size: 11, weight: .bold))
                                             .foregroundColor(sendToAll ? Color(hex: "2D6DAB") : Color.nafTextGray)
                                     }
-                                    Text("All")
-                                        .font(.system(size: 11))
+                                    Text("All").font(.system(size: 11))
                                         .foregroundColor(sendToAll ? Color(hex: "2D6DAB") : Color.nafTextGray)
                                 }
                             }
@@ -550,33 +502,19 @@ struct SendMoneyPopup: View {
             Spacer().frame(height: 16)
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Amount (SAR)")
-                    .font(.system(size: 13))
-                    .foregroundColor(Color.nafTextGray)
+                Text("Amount (SAR)").font(.system(size: 13)).foregroundColor(Color.nafTextGray)
                 HStack(spacing: 10) {
                     TextField("Enter amount", text: $amount)
-                        .keyboardType(.decimalPad)
-                        .font(.system(size: 16))
-                        .foregroundColor(Color(hex: "1B3A6B"))
-                        .padding(14)
-                        .background(Color(hex: "F5F7FA"))
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .keyboardType(.decimalPad).font(.system(size: 16)).foregroundColor(Color(hex: "1B3A6B"))
+                        .padding(14).background(Color(hex: "F5F7FA")).clipShape(RoundedRectangle(cornerRadius: 12))
                         .onChange(of: amount) { _ in showError = false }
-
-                    Button {
-                        showVoice.toggle()
-                        if showVoice { showNote = false }
-                    } label: {
+                    Button { showVoice.toggle(); if showVoice { showNote = false } } label: {
                         ZStack {
                             Circle().fill(showVoice ? Color(hex: "2D6DAB") : Color(hex: "F0F0F0")).frame(width: 46, height: 46)
                             Image(systemName: "mic.fill").font(.system(size: 18)).foregroundColor(showVoice ? .white : Color.nafTextGray)
                         }
                     }
-
-                    Button {
-                        showNote.toggle()
-                        if showNote { showVoice = false }
-                    } label: {
+                    Button { showNote.toggle(); if showNote { showVoice = false } } label: {
                         ZStack {
                             Circle().fill(showNote ? Color(hex: "2D6DAB") : Color(hex: "F0F0F0")).frame(width: 46, height: 46)
                             Image(systemName: "pencil").font(.system(size: 18)).foregroundColor(showNote ? .white : Color.nafTextGray)
@@ -588,16 +526,12 @@ struct SendMoneyPopup: View {
 
             if showNote {
                 ZStack(alignment: .topLeading) {
-                    TextEditor(text: $note)
-                        .font(.system(size: 14))
-                        .foregroundColor(Color(hex: "1B3A6B"))
-                        .frame(height: 80).padding(8)
-                        .background(Color(hex: "F5F7FA"))
+                    TextEditor(text: $note).font(.system(size: 14)).foregroundColor(Color(hex: "1B3A6B"))
+                        .frame(height: 80).padding(8).background(Color(hex: "F5F7FA"))
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.nafLightCard, lineWidth: 1))
                     if note.isEmpty {
-                        Text("Write a note to your child...")
-                            .font(.system(size: 14)).foregroundColor(Color.nafTextGray)
+                        Text("Write a note to your child...").font(.system(size: 14)).foregroundColor(Color.nafTextGray)
                             .padding(16).allowsHitTesting(false)
                     }
                 }
@@ -607,17 +541,14 @@ struct SendMoneyPopup: View {
 
             if showVoice {
                 VoiceNoteRecorder(voiceNoteUrl: $voiceNoteUrl)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
+                    .padding(.horizontal, 20).padding(.top, 10)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             if showError {
                 Text("You don't have enough balance to send this amount")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color(hex: "C0392B"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20).padding(.top, 8)
+                    .font(.system(size: 12, weight: .medium)).foregroundColor(Color(hex: "C0392B"))
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.top, 8)
                     .transition(.opacity)
             }
 
@@ -630,8 +561,7 @@ struct SendMoneyPopup: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 27)
-                        .fill(
-                            canSend && !isSending
+                        .fill(canSend && !isSending
                             ? LinearGradient(colors: [Color(hex: "1A3F7A"), Color(hex: "2D6DAB"), Color(hex: "1A3F7A")], startPoint: .leading, endPoint: .trailing)
                             : LinearGradient(colors: [Color.nafTextGray, Color.nafTextGray], startPoint: .leading, endPoint: .trailing))
                         .frame(height: 54)
@@ -642,8 +572,7 @@ struct SendMoneyPopup: View {
             .disabled(!canSend || isSending)
             .padding(.horizontal, 20).padding(.bottom, 24)
         }
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .background(Color.white).clipShape(RoundedRectangle(cornerRadius: 20))
         .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 8)
     }
 
@@ -652,9 +581,8 @@ struct SendMoneyPopup: View {
         isSending = true
 
         let childrenToSend: [ChildProfile]
-        if sendToAll {
-            childrenToSend = children
-        } else {
+        if sendToAll { childrenToSend = children }
+        else {
             guard let child = children.first(where: { $0.id == selectedChildId })
             else { isSending = false; return }
             childrenToSend = [child]
@@ -668,12 +596,10 @@ struct SendMoneyPopup: View {
 
         do {
             for c in childrenToSend {
-                let jars: [Jar] = try await supabase
-                    .from("jars").select().eq("child_id", value: c.id.uuidString).execute().value
-
-                let savingAmt   = amount * c.savePercent
+                let jars: [Jar] = try await supabase.from("jars").select().eq("child_id", value: c.id.uuidString).execute().value
+                let savingAmt = amount * c.savePercent
                 let spendingAmt = amount * c.spendPercent
-                let givingAmt   = amount * c.givePercent
+                let givingAmt = amount * c.givePercent
 
                 for jar in jars {
                     let addAmount: Double
@@ -682,42 +608,43 @@ struct SendMoneyPopup: View {
                     case .spending: addAmount = spendingAmt
                     case .giving:   addAmount = givingAmt
                     }
-
-                    try await supabase
-                        .from("jars")
-                        .update(["balance": jar.balance + addAmount])
-                        .eq("id", value: jar.id.uuidString).execute()
-
+                    try await supabase.from("jars").update(["balance": jar.balance + addAmount]).eq("id", value: jar.id.uuidString).execute()
                     if jar.type == .saving && addAmount > 0 {
                         await syncGoalsToSavingJar(childId: c.id, newJarBalance: jar.balance + addAmount)
                     }
-
                     struct TransactionInsert: Encodable {
-                        let child_id: String; let jar_id: String
-                        let type: String; let amount: Double
-                        let source: String; let note: String
+                        let child_id: String; let jar_id: String; let type: String
+                        let amount: Double; let source: String; let note: String
                     }
-                    try await supabase.from("transactions")
-                        .insert(TransactionInsert(
-                            child_id: c.id.uuidString, jar_id: jar.id.uuidString,
-                            type: "deposit", amount: addAmount,
-                            source: "allowance",
-                            note: note.isEmpty ? selectedType.rawValue : note))
-                        .execute()
+                    try await supabase.from("transactions").insert(TransactionInsert(
+                        child_id: c.id.uuidString, jar_id: jar.id.uuidString, type: "deposit",
+                        amount: addAmount, source: "allowance", note: note.isEmpty ? selectedType.rawValue : note)).execute()
                 }
 
+                // ── Log transfer to child activity (ALWAYS) ──────────
+                struct ChildTransferActivity: Encodable {
+                    let child_id: String; let title: String; let meta: String
+                    let sf_symbol: String; let jar_color: String; let amount: Double
+                }
+                try? await supabase.from("child_activity")
+                    .insert(ChildTransferActivity(
+                        child_id:  c.id.uuidString,
+                        title:     "💰 Your parent sent you \(Int(amount)) SAR",
+                        meta:      note.isEmpty ? selectedType.rawValue : note,
+                        sf_symbol: "dollarsign.circle.fill",
+                        jar_color: "blue",
+                        amount:    amount))
+                    .execute()
+
+                // ── Log voice note if attached ────────────────────────
                 if let vUrl = voiceNoteUrl, !vUrl.isEmpty {
                     struct VoiceNoteActivity: Encodable {
                         let child_id: String; let title: String; let meta: String
-                        let sf_symbol: String; let jar_color: String
-                        let amount: Double; let voice_note_url: String
+                        let sf_symbol: String; let jar_color: String; let amount: Double; let voice_note_url: String
                     }
-                    try? await supabase.from("child_activity")
-                        .insert(VoiceNoteActivity(
-                            child_id: c.id.uuidString,
-                            title: "🎙️ Voice note from your parent", meta: "Tap to listen",
-                            sf_symbol: "mic.fill", jar_color: "blue", amount: 0, voice_note_url: vUrl))
-                        .execute()
+                    try? await supabase.from("child_activity").insert(VoiceNoteActivity(
+                        child_id: c.id.uuidString, title: "🎙️ Voice note from your parent", meta: "Tap to listen",
+                        sf_symbol: "mic.fill", jar_color: "blue", amount: 0, voice_note_url: vUrl)).execute()
                 }
 
                 await parentVM.sendMoney(to: c.name, amount: amount, type: selectedType.rawValue)
@@ -725,9 +652,7 @@ struct SendMoneyPopup: View {
                     transactions.insert(TransferRecord(type: selectedType.rawValue, childName: c.name, date: "Today", amount: amount), at: 0)
                 }
             }
-
             await MainActor.run { isPresented = false }
-
         } catch {
             print("❌ sendAllowance error: \(error)")
             await MainActor.run { isSending = false }
@@ -765,6 +690,10 @@ struct ReminderCard: View {
     @Binding var selectedChildId: UUID?
     let onConfirm: () -> Void
 
+    var canConfirm: Bool {
+        children.count <= 1 || selectedChildId != nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             Button {
@@ -790,7 +719,6 @@ struct ReminderCard: View {
                 VStack(spacing: 16) {
                     Divider().padding(.horizontal, 14)
 
-                    // ── Child selector ──────────────────
                     if children.count > 1 {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("FOR WHICH CHILD?")
@@ -822,6 +750,15 @@ struct ReminderCard: View {
                                 }
                                 .padding(.horizontal, 14)
                             }
+
+                            if selectedChildId == nil {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "info.circle").font(.system(size: 12))
+                                    Text("Please select a child to set a reminder for").font(.system(size: 12))
+                                }
+                                .foregroundColor(Color(hex: "E05555"))
+                                .padding(.horizontal, 14)
+                            }
                         }
                     }
 
@@ -839,8 +776,7 @@ struct ReminderCard: View {
                             HStack(spacing: 6) {
                                 ForEach(weekDays, id: \.self) { day in
                                     Button { selectedDay = day } label: {
-                                        Text(day)
-                                            .font(.system(size: 11, weight: .medium))
+                                        Text(day).font(.system(size: 11, weight: .medium))
                                             .foregroundColor(selectedDay == day ? .white : Color.nafTextGray)
                                             .frame(maxWidth: .infinity).frame(height: 34)
                                             .background(selectedDay == day ? Color(hex: "2D6DAB") : Color.white)
@@ -871,37 +807,30 @@ struct ReminderCard: View {
                     }
                 }
 
-                // ── Confirm button ──────────────────
                 Button(action: onConfirm) {
-                    Text("Set Reminder ✅")
+                    Text("Set Reminder")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 46)
-                        .background(Color(hex: "2D6DAB"))
+                        .background(canConfirm ? Color(hex: "2D6DAB") : Color.nafTextGray)
                         .cornerRadius(12)
                 }
+                .disabled(!canConfirm)
                 .padding(.horizontal, 14)
                 .padding(.top, 4)
                 .padding(.bottom, 14)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
-            // ── Success message ─────────────────────
             if reminderSaved {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Color(hex: "2E7D32"))
-                    Text("Reminder set!")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(hex: "2E7D32"))
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(Color(hex: "2E7D32"))
+                    Text("Reminder set!").font(.system(size: 14, weight: .semibold, design: .rounded)).foregroundColor(Color(hex: "2E7D32"))
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(Color(hex: "E8F5E9"))
-                .cornerRadius(10)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 14)
+                .frame(maxWidth: .infinity).padding(.vertical, 10)
+                .background(Color(hex: "E8F5E9")).cornerRadius(10)
+                .padding(.horizontal, 14).padding(.bottom, 14)
                 .transition(.opacity)
             }
         }
@@ -992,13 +921,11 @@ struct MultiDateCalendar: View {
                     Image(systemName: "chevron.right").font(.system(size: 13)).foregroundColor(Color.nafTextGray)
                 }
             }
-
             HStack(spacing: 0) {
                 ForEach(weekHeaders, id: \.self) { h in
                     Text(h).font(.system(size: 11, weight: .medium)).foregroundColor(Color.nafTextGray).frame(maxWidth: .infinity)
                 }
             }
-
             ForEach(0..<grid.count, id: \.self) { r in
                 HStack(spacing: 0) {
                     ForEach(0..<7) { c in
@@ -1011,8 +938,7 @@ struct MultiDateCalendar: View {
                             Button {
                                 if isSel { selectedDates.remove(day) } else { selectedDates.insert(day) }
                             } label: {
-                                Text("\(day)")
-                                    .font(.system(size: 13, weight: isSel ? .bold : .regular))
+                                Text("\(day)").font(.system(size: 13, weight: isSel ? .bold : .regular))
                                     .foregroundColor(isSel ? .white : isToday ? Color(hex: "2D6DAB") : Color(hex: "1B3A6B"))
                                     .frame(maxWidth: .infinity).frame(height: 34)
                                     .background(isSel ? Color(hex: "2D6DAB") : Color.clear)
@@ -1040,9 +966,7 @@ struct PendingRequestsSection: View {
             Text("\(pendingCount) PENDING REQUESTS")
                 .font(.system(size: 11, weight: .bold)).tracking(0.8).foregroundColor(Color.nafTextGray).padding(.horizontal, 4)
             ForEach(requests.indices, id: \.self) { i in
-                if requests[i].isApproved == nil {
-                    PendingRequestCard(request: $requests[i])
-                }
+                if requests[i].isApproved == nil { PendingRequestCard(request: $requests[i]) }
             }
         }
         .padding(14).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 16))
@@ -1070,10 +994,8 @@ struct PendingRequestCard: View {
                 Spacer()
                 Text(amtText).font(.system(size: 15, weight: .bold)).foregroundColor(amtColor)
             }
-            Text(request.description)
-                .font(.system(size: 13, weight: .medium)).foregroundColor(pillText)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14).padding(.vertical, 10)
+            Text(request.description).font(.system(size: 13, weight: .medium)).foregroundColor(pillText)
+                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 14).padding(.vertical, 10)
                 .background(pillBg).clipShape(RoundedRectangle(cornerRadius: 10))
             HStack(spacing: 10) {
                 Button {
@@ -1098,9 +1020,7 @@ struct PendingRequestCard: View {
                                 try? await supabase.from("child_activity").insert(CAI(child_id: child.id.uuidString, title: notifTitle, meta: desc, sf_symbol: "checkmark.circle.fill", jar_color: "green", amount: request.amount)).execute()
                                 let jarName: String
                                 if desc.contains("Saving") { jarName = "saving" } else if desc.contains("Giving") { jarName = "giving" } else { jarName = "spending" }
-                                if let jars = try? await supabase.from("jars").select().eq("child_id", value: child.id.uuidString).eq("type", value: jarName).execute().value as [Jar],
-                                   let jar = jars.first {
-                                    // Spending = subtract. Saving/Giving = add.
+                                if let jars = try? await supabase.from("jars").select().eq("child_id", value: child.id.uuidString).eq("type", value: jarName).execute().value as [Jar], let jar = jars.first {
                                     if isSpending {
                                         if jar.balance >= request.amount {
                                             try? await supabase.from("jars").update(["balance": jar.balance - request.amount]).eq("id", value: jar.id.uuidString).execute()
@@ -1118,7 +1038,6 @@ struct PendingRequestCard: View {
                     Text("Approve").font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
                         .frame(maxWidth: .infinity).frame(height: 42).background(Color(hex: "2D7A4F")).clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-
                 Button {
                     withAnimation { request.isApproved = false }
                     Task {
@@ -1157,9 +1076,7 @@ struct TransactionHistorySection: View {
     let transactions: [TransferRecord]
     var body: some View {
         VStack(spacing: 0) {
-            Button {
-                withAnimation(.spring(response: 0.35)) { expanded.toggle() }
-            } label: {
+            Button { withAnimation(.spring(response: 0.35)) { expanded.toggle() } } label: {
                 HStack(spacing: 12) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10).fill(Color(hex: "EBF0F8")).frame(width: 38, height: 38)
@@ -1174,7 +1091,6 @@ struct TransactionHistorySection: View {
                 }
                 .padding(14)
             }
-
             if expanded {
                 Divider().padding(.horizontal, 14)
                 if transactions.isEmpty {
@@ -1210,3 +1126,4 @@ struct TransactionHistorySection: View {
         .environmentObject(ParentViewModel())
         .environmentObject(AuthViewModel())
 }
+
