@@ -61,13 +61,24 @@ final class ChildViewModel: ObservableObject {
 
     // ── Upload child photo to Supabase Storage ────────────
     func uploadChildPhoto(_ image: UIImage, parentId: UUID, childName: String) async -> String? {
-        guard let data = image.jpegData(compressionQuality: 0.7) else { return nil }
-        let fileName = "child_\(parentId.uuidString)_\(childName.replacingOccurrences(of: " ", with: "_"))_\(UUID().uuidString).jpg"
+        guard let data = image.jpegData(compressionQuality: 0.7) else {
+            print("❌ uploadChildPhoto: failed to convert image to JPEG")
+            return nil
+        }
+        let safeName = childName
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: "/", with: "_")
+        let fileName = "child_\(parentId.uuidString)_\(safeName)_\(UUID().uuidString).jpg"
 
         do {
             try await supabase.storage
                 .from("child-avatars")
-                .upload(fileName, data: data, options: FileOptions(contentType: "image/jpeg"))
+                .upload(
+                    fileName,
+                    data: data,
+                    options: FileOptions(
+                        contentType: "image/jpeg",
+                        upsert: true))
 
             let publicUrl = try supabase.storage
                 .from("child-avatars")

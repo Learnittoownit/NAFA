@@ -1,6 +1,7 @@
 import SwiftUI
 import Combine
 import Supabase
+import UserNotifications
 
 // ─────────────────────────────────────────────
 // MARK: - Activity Item (Parent side)
@@ -126,10 +127,66 @@ final class ParentViewModel: ObservableObject {
             isWeekly:    isWeekly,
             weekDay:     weekDay)
         allowanceSchedules.append(schedule)
+
+        // ── Schedule a real local notification ──────────────
         Task {
+            await scheduleNotification(
+                childName:   childName,
+                date:        nextDueDate,
+                isWeekly:    isWeekly,
+                weekDay:     weekDay)
             await logActivity(
                 title: "You set up a reminder for \(childName)",
                 meta:  "Today · \(childName)")
+        }
+    }
+
+    func scheduleNotification(childName: String, date: Date,
+                               isWeekly: Bool, weekDay: String?) async {
+        let center = UNUserNotificationCenter.current()
+
+        // Request permission if not granted
+        let status = await center.notificationSettings().authorizationStatus
+        if status == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound, .badge])
+        }
+
+        // Remove old reminder for this child
+        center.removePendingNotificationRequests(withIdentifiers: ["reminder_\(childName)"])
+
+        let content = UNMutableNotificationContent()
+        content.title = "💰 Allowance Reminder"
+        content.body  = "Time to send \(childName)'s allowance!"
+        content.sound = .default
+
+        let trigger: UNNotificationTrigger
+        if isWeekly, let day = weekDay {
+            // Map day name to weekday number
+            let days = ["Sun":1,"Mon":2,"Tue":3,"Wed":4,"Thu":5,"Fri":6,"Sat":7]
+            let weekdayNum = days[day] ?? 6
+            var comps = DateComponents()
+            comps.weekday = weekdayNum
+            comps.hour    = 9
+            comps.minute  = 0
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+        } else {
+            // One-time notification on the selected date at 9am
+            var comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+            comps.hour   = 9
+            comps.minute = 0
+            trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        }
+
+        let request = UNNotificationRequest(
+            identifier: "reminder_\(childName)",
+            content:    content,
+            trigger:    trigger)
+
+        do {
+            try await center.add(request)
+            print("✅ Notification scheduled for \(childName)")
+        } catch {
+            print("❌ scheduleNotification: \(error)")
         }
     }
 

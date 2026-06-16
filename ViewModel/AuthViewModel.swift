@@ -105,12 +105,20 @@ final class AuthViewModel: ObservableObject {
     func logout() async {
         do {
             try await supabase.auth.signOut()
-            isLoggedIn    = false
-            currentUserId = nil
-            errorMessage  = nil
         } catch {
-            errorMessage = error.localizedDescription
+            print("❌ logout signOut: \(error)")
         }
+        // Clear everything regardless of signOut success
+        isLoggedIn    = false
+        currentUserId = nil
+        // Clear child session too
+        UserDefaults.standard.removeObject(forKey: "childId")
+        UserDefaults.standard.removeObject(forKey: "parentId")
+        UserDefaults.standard.removeObject(forKey: "childName")
+        UserDefaults.standard.removeObject(forKey: "childAvatar")
+        UserDefaults.standard.removeObject(forKey: "savedGoals")
+        UserDefaults.standard.removeObject(forKey: "savedChildActivity")
+        UserDefaults.standard.set(false, forKey: "isChildLoggedIn")
     }
 
     // ─────────────────────────────────────

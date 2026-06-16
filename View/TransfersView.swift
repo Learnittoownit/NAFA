@@ -734,9 +734,13 @@ struct ReminderCard: View {
                                                     Circle()
                                                         .fill(isSelected ? Color(hex: "2D6DAB") : Color(hex: "F0F4FA"))
                                                         .frame(width: 30, height: 30)
-                                                    Text(child.avatarUrl ?? String(child.name.prefix(1)))
-                                                        .font(.system(size: child.avatarUrl?.isEmpty == false ? 16 : 13, weight: .bold))
-                                                        .foregroundColor(isSelected ? .white : Color(hex: "2D6DAB"))
+                                                    if let av = child.avatarUrl, !av.isEmpty {
+                                                        ChildAvatarView(avatar: av, size: 30)
+                                                    } else {
+                                                        Text(String(child.name.prefix(1)))
+                                                            .font(.system(size: 13, weight: .bold))
+                                                            .foregroundColor(isSelected ? .white : Color(hex: "2D6DAB"))
+                                                    }
                                                 }
                                                 Text(child.name)
                                                     .font(.system(size: 13, weight: .medium))
@@ -1126,4 +1130,3 @@ struct TransactionHistorySection: View {
         .environmentObject(ParentViewModel())
         .environmentObject(AuthViewModel())
 }
-

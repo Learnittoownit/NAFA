@@ -1140,7 +1140,15 @@ struct DeleteAccountView: View {
             try? await supabase.from("parent_activity").delete().eq("parent_id", value: parentId.uuidString).execute()
             try? await supabase.from("parent").delete().eq("id", value: parentId.uuidString).execute()
             try await supabase.auth.signOut()
-            await MainActor.run { authVM.isLoggedIn = false; authVM.currentUserId = nil; onDeleted(); dismiss() }
+            await MainActor.run {
+                authVM.isLoggedIn    = false
+                authVM.currentUserId = nil
+                ["childId","parentId","childName","childAvatar","savedGoals","savedChildActivity"]
+                    .forEach { UserDefaults.standard.removeObject(forKey: $0) }
+                UserDefaults.standard.set(false, forKey: "isChildLoggedIn")
+                onDeleted()
+                dismiss()
+            }
         } catch { print("❌ deleteEverything: \(error)"); await MainActor.run { isDeleting = false } }
     }
 }
